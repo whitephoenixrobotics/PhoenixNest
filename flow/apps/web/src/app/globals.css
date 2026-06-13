@@ -1,0 +1,263 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Text caret always uses the accent colour → visible on any background */
+input,
+textarea {
+  caret-color: var(--accent);
+}
+
+/* Ensure input/textarea text stays dark in light mode (some inputs rely on
+   inherited colour rather than an explicit text-zinc class) */
+[data-mode="light"] input,
+[data-mode="light"] textarea,
+[data-mode="light"] select {
+  color: #18181b;
+}
+
+/* ─── Theme accent variables (overridden by themeStore) ─── */
+:root {
+  --accent: #a78bfa;
+  --accent-bright: #c4b5fd;
+  --accent-dim: #7c3aed;
+  --accent-rgb: 167 139 250;
+}
+
+/* Re-map Tailwind violet utilities to the active accent so existing classes
+   re-theme automatically. Keep the original colour-name for code clarity. */
+.text-violet-300 { color: var(--accent-bright) !important; }
+.text-violet-400 { color: var(--accent) !important; }
+.text-violet-500 { color: var(--accent) !important; }
+.bg-violet-500 { background-color: var(--accent) !important; }
+.bg-violet-600 { background-color: var(--accent-dim) !important; }
+.bg-violet-700 { background-color: var(--accent-dim) !important; }
+.hover\:bg-violet-500:hover { background-color: var(--accent) !important; }
+.hover\:bg-violet-400:hover { background-color: var(--accent-bright) !important; }
+.hover\:text-violet-300:hover { color: var(--accent-bright) !important; }
+.hover\:text-violet-400:hover { color: var(--accent) !important; }
+.border-violet-500 { border-color: var(--accent) !important; }
+.border-violet-700 { border-color: var(--accent-dim) !important; }
+.hover\:border-violet-500:hover { border-color: var(--accent) !important; }
+.ring-violet-500 { --tw-ring-color: var(--accent) !important; }
+.accent-violet-500 { accent-color: var(--accent) !important; }
+
+/* In light mode the OS grab/default cursor can be a light fill that blends
+   into the pale canvas. Force a high-contrast custom cursor (dark arrow with
+   white outline) on the React Flow surfaces so it's always visible. */
+[data-mode="light"] .react-flow__pane,
+[data-mode="light"] .react-flow__renderer {
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path d='M5 3 L5 19 L9.5 14.5 L12.5 21 L15 20 L12 13.5 L18 13 Z' fill='black' stroke='white' stroke-width='1.5' stroke-linejoin='round'/></svg>") 4 3, default !important;
+}
+[data-mode="light"] .react-flow__pane.dragging {
+  cursor: grabbing !important;
+}
+
+/* ─── Light mode — remap the dark zinc scale to light equivalents ─── */
+[data-mode="light"] {
+  --background: #f4f4f5;
+  --foreground: #18181b;
+}
+[data-mode="light"] body { background: #f4f4f5; color: #18181b; }
+
+/* Backgrounds (dark → light, inverted scale) */
+[data-mode="light"] .bg-zinc-950 { background-color: #e4e4e7 !important; }
+[data-mode="light"] .bg-zinc-900 { background-color: #ffffff !important; }
+[data-mode="light"] .bg-zinc-800 { background-color: #f4f4f5 !important; }
+[data-mode="light"] .bg-zinc-700 { background-color: #e4e4e7 !important; }
+[data-mode="light"] .hover\:bg-zinc-800:hover { background-color: #e4e4e7 !important; }
+[data-mode="light"] .hover\:bg-zinc-700:hover { background-color: #d4d4d8 !important; }
+
+/* Text (light → dark) */
+[data-mode="light"] .text-zinc-100 { color: #18181b !important; }
+[data-mode="light"] .text-zinc-200 { color: #27272a !important; }
+[data-mode="light"] .text-zinc-300 { color: #3f3f46 !important; }
+[data-mode="light"] .text-zinc-400 { color: #52525b !important; }
+[data-mode="light"] .text-zinc-500 { color: #71717a !important; }
+[data-mode="light"] .text-zinc-600 { color: #a1a1aa !important; }
+[data-mode="light"] .text-white { color: #18181b !important; }
+[data-mode="light"] .hover\:text-white:hover { color: #000000 !important; }
+
+/* ...but keep WHITE text on coloured buttons (their bg stays dark in light
+   mode). More-specific selectors win over the plain .text-white override. */
+[data-mode="light"] .bg-violet-600.text-white,
+[data-mode="light"] .bg-violet-500.text-white,
+[data-mode="light"] .bg-red-600.text-white,
+[data-mode="light"] .bg-emerald-600.text-white,
+[data-mode="light"] .bg-emerald-500.text-white {
+  color: #ffffff !important;
+}
+[data-mode="light"] .hover\:text-zinc-200:hover { color: #18181b !important; }
+[data-mode="light"] .hover\:text-zinc-300:hover { color: #27272a !important; }
+
+/* Borders */
+[data-mode="light"] .border-zinc-700 { border-color: #d4d4d8 !important; }
+[data-mode="light"] .border-zinc-800 { border-color: #e4e4e7 !important; }
+[data-mode="light"] .border-zinc-600 { border-color: #c4c4c8 !important; }
+
+/* Placeholders */
+[data-mode="light"] .placeholder-zinc-600::placeholder { color: #a1a1aa !important; }
+[data-mode="light"] .placeholder-zinc-500::placeholder { color: #b1b1b8 !important; }
+
+/* Scrollbar adapts */
+[data-mode="light"] .scrollbar-themed::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+}
+
+/* Run-Flow & primary buttons keep white text (accent bg stays dark enough) */
+[data-mode="light"] .text-violet-400,
+[data-mode="light"] .text-violet-300 { color: var(--accent-dim) !important; }
+
+/* Panel surfaces — tint with the active theme accent in light mode
+   (project card gradient + top bar opacity backgrounds aren't caught by
+   the plain bg-zinc overrides above, so handle them explicitly). */
+[data-mode="light"] .from-zinc-800.to-zinc-900 {
+  background-image: none !important;
+  background-color: rgb(var(--accent-rgb) / 0.07) !important;
+}
+[data-mode="light"] .bg-zinc-900\/80,
+[data-mode="light"] .bg-zinc-900\/60,
+[data-mode="light"] .bg-zinc-900\/70 {
+  background-color: rgb(var(--accent-rgb) / 0.05) !important;
+}
+[data-mode="light"] .bg-zinc-800\/60,
+[data-mode="light"] .bg-zinc-800\/30 {
+  background-color: rgb(var(--accent-rgb) / 0.06) !important;
+}
+/* Sidebar gets a whisper of accent so it reads as themed, not flat white */
+[data-mode="light"] aside {
+  background-color: rgb(var(--accent-rgb) / 0.04) !important;
+}
+
+/* ─── Logo rainbow aura (hover) ─────────────────────────────── */
+.logo-aura {
+  z-index: 0;
+  animation: aura-spin 2.5s linear infinite;
+}
+@keyframes aura-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Kids theme — rounder, bouncier, more playful ──────────── */
+[data-theme="kids"] .react-flow__node {
+  filter: drop-shadow(0 4px 12px rgba(var(--accent-rgb) / 0.25));
+}
+[data-theme="kids"] .rounded-xl { border-radius: 1.25rem !important; }
+[data-theme="kids"] .rounded-lg { border-radius: 1rem !important; }
+[data-theme="kids"] .rounded-md { border-radius: 0.75rem !important; }
+/* Chunkier connection lines */
+[data-theme="kids"] .react-flow__edge-path {
+  stroke-width: 3 !important;
+}
+/* Playful pop on node hover */
+[data-theme="kids"] .react-flow__node:hover {
+  transform: scale(1.015);
+  transition: transform 0.15s ease;
+}
+
+/* ─── React Flow Controls — dark themed ─────────────────────── */
+.phoenix-controls.react-flow__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: transparent;
+  box-shadow: none;
+  border: none;
+  padding: 0;
+}
+
+.phoenix-controls .react-flow__controls-button {
+  width: 32px;
+  height: 32px;
+  background: rgba(24, 24, 27, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgb(63, 63, 70);
+  border-radius: 8px;
+  color: rgb(212, 212, 216);
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.phoenix-controls .react-flow__controls-button:hover {
+  background: rgb(139, 92, 246);
+  border-color: rgb(139, 92, 246);
+  color: white;
+  transform: scale(1.05);
+}
+
+.phoenix-controls .react-flow__controls-button:active {
+  transform: scale(0.95);
+}
+
+.phoenix-controls .react-flow__controls-button svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+/* MiniMap polish */
+.react-flow__minimap {
+  border: 1px solid rgb(63, 63, 70);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* ─── Themed scrollbar — slim, dark, violet on hover ──────────── */
+.scrollbar-themed {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(63, 63, 70) transparent;  /* Firefox */
+}
+
+.scrollbar-themed::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-themed::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-themed::-webkit-scrollbar-thumb {
+  background: rgb(63, 63, 70);           /* zinc-700 */
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  min-height: 30px;
+  transition: background-color 0.15s;
+}
+
+.scrollbar-themed::-webkit-scrollbar-thumb:hover {
+  background: rgb(139, 92, 246);         /* violet-500 */
+  background-clip: content-box;
+}
+
+.scrollbar-themed::-webkit-scrollbar-corner {
+  background: transparent;
+}

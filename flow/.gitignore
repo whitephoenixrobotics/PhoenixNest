@@ -1,0 +1,40 @@
+# ─── Node / Next.js ───
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# Keep the desktop app icons (they live in a "build/" folder but are source assets)
+!apps/desktop/build/
+!apps/desktop/build/**
+
+# ─── Python ───
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+venv/
+.venv/
+
+# ─── Models / weights (downloaded at runtime) ───
+*.pt
+
+# ─── Env / secrets ───
+.env
+.env.local
+.env.*.local
+
+# ─── User data / large artifacts (not source — back up separately) ───
+apps/api/storage/
+apps/api/data/
+
+# ─── Local editor/agent config ───
+.claude/settings.local.json
+
+# ─── OS / editor ───
+.DS_Store
+Thumbs.db
+*.log

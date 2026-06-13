@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Phoenix Flow — ออฟไลน์</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        background: #09090b;
+        color: #e4e4e7;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+      }
+      .card { max-width: 420px; padding: 32px; }
+      .icon {
+        width: 72px; height: 72px; margin: 0 auto 20px;
+        border-radius: 50%;
+        background: rgba(244, 63, 94, 0.1);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 34px;
+      }
+      h1 { font-size: 20px; margin: 0 0 8px; color: #fff; }
+      p { font-size: 14px; color: #a1a1aa; line-height: 1.6; margin: 0 0 24px; }
+      button {
+        background: #7c3aed; color: #fff; border: 0;
+        padding: 11px 20px; border-radius: 10px;
+        font-size: 14px; font-weight: 500; cursor: pointer;
+        transition: background 0.15s;
+      }
+      button:hover { background: #8b5cf6; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      .hint { margin-top: 16px; font-size: 12px; color: #71717a; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="icon">📡</div>
+      <h1>ต้องเชื่อมต่ออินเทอร์เน็ต</h1>
+      <p>
+        Phoenix Flow ต้องเชื่อมต่ออินเทอร์เน็ตและเข้าสู่ระบบเพื่อใช้งาน<br />
+        กรุณาตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง
+      </p>
+      <button id="retry" onclick="retry()">ลองใหม่อีกครั้ง</button>
+      <div class="hint" id="hint"></div>
+    </div>
+    <script>
+      async function retry() {
+        const btn = document.getElementById('retry')
+        const hint = document.getElementById('hint')
+        btn.disabled = true
+        hint.textContent = 'กำลังตรวจสอบ...'
+        try {
+          await window.phoenix.reloadApp()
+        } catch (e) {
+          hint.textContent = 'ยังเชื่อมต่อไม่ได้'
+        }
+        setTimeout(() => {
+          btn.disabled = false
+          if (hint.textContent === 'กำลังตรวจสอบ...') hint.textContent = 'ยังเชื่อมต่อไม่ได้'
+        }, 1500)
+      }
+    </script>
+  </body>
+</html>

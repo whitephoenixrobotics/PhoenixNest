@@ -1,0 +1,78 @@
+{
+  "name": "phoenix-desktop",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Phoenix Flow Desktop (Electron shell)",
+  "author": "Phoenix Flow",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "publish": "electron-builder --publish always"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "build": {
+    "appId": "com.phoenixflow.desktop",
+    "productName": "Phoenix Flow",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../api/dist/phoenix-api",
+        "to": "phoenix-api",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../web/.next/standalone",
+        "to": "web",
+        "filter": ["**/*"]
+      }
+    ],
+    "asarUnpack": [
+      "**/*"
+    ],
+    "protocols": [
+      {
+        "name": "Phoenix Flow",
+        "schemes": ["phoenixflow"]
+      }
+    ],
+    "win": {
+      "target": ["nsis-web"],
+      "artifactName": "Phoenix-Flow-CPU-Setup-${version}.${ext}"
+    },
+    "nsisWeb": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "artifactName": "Phoenix-Flow-CPU-${version}-${arch}.${ext}"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Development"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "whitephoenixrobotics",
+        "repo": "PhoenixFlow-Releases"
+      }
+    ]
+  }
+}

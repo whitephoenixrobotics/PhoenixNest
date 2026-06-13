@@ -1,0 +1,43 @@
+'use client'
+
+import { RotateCcw } from 'lucide-react'
+import { BaseNode } from '../BaseNode'
+import { useExecutionStore } from '@/stores/executionStore'
+import { useFlowStore } from '@/stores/flowStore'
+import { BlockIcon } from '../BlockIcons'
+
+interface Props {
+  id: string
+  data: { label: string; config: Record<string, unknown> }
+  selected?: boolean
+}
+
+export function CounterNode({ id, data, selected }: Props) {
+  const updateNodeConfig = useFlowStore((s) => s.updateNodeConfig)
+  const output = useExecutionStore((s) => s.nodeStates[id]?.output) as
+    | { count?: number }
+    | undefined
+
+  const reset = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const cur = Number(data.config?.reset ?? 0)
+    updateNodeConfig(id, { reset: cur + 1 })
+  }
+
+  return (
+    <BaseNode id={id} data={data} selected={selected} icon={<BlockIcon type="counter" size={16} className="text-violet-400" />}>
+      <div className="w-[140px] flex flex-col items-center gap-1.5 py-1">
+        <span className="text-4xl font-bold text-violet-300 tabular-nums leading-none">
+          {output?.count ?? 0}
+        </span>
+        <button
+          onClick={reset}
+          className="nodrag flex items-center gap-1 px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded text-[10px] text-zinc-400 hover:text-zinc-200"
+          title="รีเซ็ตตัวนับ"
+        >
+          <RotateCcw size={9} /> Reset
+        </button>
+      </div>
+    </BaseNode>
+  )
+}

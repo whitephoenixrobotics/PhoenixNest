@@ -1,0 +1,36 @@
+fastapi==0.115.12
+uvicorn[standard]==0.34.3
+sqlalchemy[asyncio]==2.0.41
+aiosqlite==0.22.1
+alembic==1.16.1
+pydantic==2.11.5
+pydantic-settings==2.9.1
+python-jose[cryptography]==3.5.0
+python-multipart==0.0.20
+httpx==0.28.1
+websockets==14.2
+python-dotenv==1.1.0
+
+# ── AI / ML stack ────────────────────────────────────────────────
+# Pillow + NumPy come in as transitive deps but are pinned for clarity.
+pillow==11.0.0
+numpy==2.1.1
+# PyTorch is installed from the CUDA 12.4 index, e.g.:
+#   pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124
+ultralytics==8.4.60          # YOLOv8 detect + pose
+open_clip_torch==3.3.0       # classifier / face recognition embeddings
+easyocr==1.7.2               # OCR (Thai + English)
+faster-whisper==1.2.1        # speech-to-text (offline, Thai), uses local CPU/GPU
+#
+# IMPORTANT — OpenCV: we need cv2.face (LBF Facemark) + cv2.dnn, which only
+# ship in opencv-contrib-python. EasyOCR depends on opencv-python-headless,
+# whose native binaries OVERWRITE contrib's and remove cv2.face. After any
+# install that touches OpenCV, restore contrib LAST:
+#   pip install --force-reinstall --no-deps opencv-contrib-python==4.13.0.92
+opencv-contrib-python==4.13.0.92
+
+# ── Hardware extensions ──────────────────────────────────────────
+# Arduino UNO via StandardFirmata protocol. pyserial is a transitive dep but
+# pinned for clarity; both are pure-Python so PyInstaller picks them up fine.
+pyserial==3.5
+pyfirmata2==2.5.0

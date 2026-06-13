@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+venv/
+.venv/
+
+# YOLO / model weights (auto-downloaded by ultralytics at runtime)
+*.pt
+
+# Uploaded (externally-trained) model files
+storage/
+
+# Env
+.env
+.env.local
+
+# Alembic compiled
+alembic/versions/__pycache__/
