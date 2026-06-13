@@ -1,41 +1,46 @@
 {
+  "$schema": "./modules.schema.json",
   "version": "1.0.0",
   "ecosystem": "PhoenixNest",
   "modules": [
     {
-      "name": "hub",
-      "path": "hub",
-      "stack": ["electron", "react", "typescript"],
-      "description": "Central desktop control panel",
-      "status": "scaffold",
-      "entry": "npm run start",
-      "dependsOn": []
-    },
-    {
-      "name": "flow",
+      "id": "ai-flow",
+      "name": "AI Flow",
       "path": "flow",
-      "stack": ["fastapi", "electron", "nextjs", "python"],
-      "description": "AI task automation (visual node editor + execution engine)",
+      "icon": "🤖",
+      "description": "Visual AI task automation — node editor, execution engine, and desktop app (FastAPI + Next.js + Electron)",
+      "stack": ["fastapi", "nextjs", "electron", "python"],
       "status": "active",
-      "entry": "start.bat",
+      "launch": {
+        "command": "start.bat",
+        "cwd": "flow",
+        "shell": true
+      },
+      "url": "http://localhost:3000",
       "dependsOn": []
     },
     {
-      "name": "python",
-      "path": "python",
-      "stack": ["python"],
-      "description": "Shared Python packages and utilities",
-      "status": "reserved",
-      "entry": null,
-      "dependsOn": []
-    },
-    {
-      "name": "circuit",
+      "id": "circuit",
+      "name": "Circuit",
       "path": "circuit",
+      "icon": "🔌",
+      "description": "IoT / hardware integration layer (firmware, drivers, device control)",
       "stack": [],
-      "description": "IoT / hardware integration layer",
       "status": "reserved",
-      "entry": null,
+      "launch": null,
+      "url": null,
+      "dependsOn": []
+    },
+    {
+      "id": "python",
+      "name": "Python",
+      "path": "python",
+      "icon": "🐍",
+      "description": "Shared Python packages and utilities used across the ecosystem",
+      "stack": ["python"],
+      "status": "reserved",
+      "launch": null,
+      "url": null,
       "dependsOn": []
     }
   ]

@@ -15,7 +15,7 @@
     "lint": "eslint src --ext .ts,.tsx"
   },
   "dependencies": {
-    "electron": "^30.0.0"
+    "electron": "^30.5.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

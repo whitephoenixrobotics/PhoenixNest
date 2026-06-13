@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PhoenixNest Module Registry",
+  "type": "object",
+  "required": ["version", "ecosystem", "modules"],
+  "properties": {
+    "version": { "type": "string" },
+    "ecosystem": { "type": "string", "const": "PhoenixNest" },
+    "modules": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/module" }
+    }
+  },
+  "definitions": {
+    "module": {
+      "type": "object",
+      "required": ["id", "name", "path", "status"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "name": { "type": "string" },
+        "path": { "type": "string", "description": "Folder relative to repo root" },
+        "icon": { "type": "string" },
+        "description": { "type": "string" },
+        "stack": { "type": "array", "items": { "type": "string" } },
+        "status": { "enum": ["active", "scaffold", "reserved", "disabled"] },
+        "launch": {
+          "type": ["object", "null"],
+          "properties": {
+            "command": { "type": "string" },
+            "cwd": { "type": "string" },
+            "shell": { "type": "boolean" }
+          }
+        },
+        "url": { "type": ["string", "null"] },
+        "dependsOn": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}
