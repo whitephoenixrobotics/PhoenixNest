@@ -40,3 +40,6 @@ logs/
 # Data / storage (runtime artifacts)
 flow/apps/api/data/
 flow/apps/api/storage/
+
+# Temp electron extraction (manual binary install)
+hub/_eltest/
