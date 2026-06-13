@@ -1,5 +1,42 @@
 {
   "version": "1.0.0",
   "ecosystem": "PhoenixNest",
-  "modules": []
+  "modules": [
+    {
+      "name": "hub",
+      "path": "hub",
+      "stack": ["electron", "react", "typescript"],
+      "description": "Central desktop control panel",
+      "status": "scaffold",
+      "entry": "npm run start",
+      "dependsOn": []
+    },
+    {
+      "name": "flow",
+      "path": "flow",
+      "stack": ["fastapi", "electron", "nextjs", "python"],
+      "description": "AI task automation (visual node editor + execution engine)",
+      "status": "active",
+      "entry": "start.bat",
+      "dependsOn": []
+    },
+    {
+      "name": "python",
+      "path": "python",
+      "stack": ["python"],
+      "description": "Shared Python packages and utilities",
+      "status": "reserved",
+      "entry": null,
+      "dependsOn": []
+    },
+    {
+      "name": "circuit",
+      "path": "circuit",
+      "stack": [],
+      "description": "IoT / hardware integration layer",
+      "status": "reserved",
+      "entry": null,
+      "dependsOn": []
+    }
+  ]
 }
