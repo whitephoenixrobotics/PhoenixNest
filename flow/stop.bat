@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 title Phoenix Flow - Stop
-cd /d P:\PhoenixFlow
+cd /d "%~dp0"
 
 echo ============================================
 echo    PHOENIX FLOW - Stopping all services
