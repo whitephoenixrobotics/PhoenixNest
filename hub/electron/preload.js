@@ -13,4 +13,9 @@ contextBridge.exposeInMainWorld('phoenixNest', {
   isDesktop: true,
   version,
   openExternal: (url) => ipcRenderer.send('phoenixnest:open-external', url),
+
+  // Module hosting: open spawns + embeds the module (handing over the current
+  // Supabase storage so it starts signed-in); close tears it down.
+  openModule: (id, storage) => ipcRenderer.invoke('module:open', id, storage),
+  closeModule: () => ipcRenderer.invoke('module:close'),
 })

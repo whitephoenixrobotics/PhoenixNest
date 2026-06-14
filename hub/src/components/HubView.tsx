@@ -1,19 +1,21 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, LogOut, X, Loader2, Check } from 'lucide-react'
+import { Plus, LogOut, X, Loader2, ArrowLeft } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 import { signOut, type AuthUser } from '@/lib/auth'
 import { CATALOG, type ModuleDef } from '@/lib/modules'
+import { isDesktop, openModule, closeModule } from '@/lib/desktop'
 
 const STORE_KEY = 'phoenixnest.installed'
 
 export function HubView({ user }: { user: AuthUser | null }) {
   const [installed, setInstalled] = useState<string[]>([])
   const [adding, setAdding] = useState(false)
-  const [opened, setOpened] = useState<ModuleDef | null>(null)
+  const [opening, setOpening] = useState<ModuleDef | null>(null)
+  const [active, setActive] = useState<ModuleDef | null>(null) // embedded module
+  const [error, setError] = useState<string | null>(null)
 
-  // Restore install state (until the Electron-side store lands).
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORE_KEY)
@@ -32,11 +34,46 @@ export function HubView({ user }: { user: AuthUser | null }) {
     }
   }
 
+  async function handleOpen(m: ModuleDef) {
+    setError(null)
+    if (!isDesktop()) {
+      setError('เปิดโมดูลได้เฉพาะในแอป PhoenixNest (desktop)')
+      return
+    }
+    setOpening(m)
+    const res = await openModule(m.id)
+    setOpening(null)
+    if (res.ok) setActive(m)
+    else setError(res.error || 'เปิดโมดูลไม่สำเร็จ')
+  }
+
+  async function handleBack() {
+    await closeModule()
+    setActive(null)
+  }
+
+  // When a module is embedded, the native view covers everything below the
+  // 44px bar — render just the back bar (must match MODULE_TOPBAR in main.js).
+  if (active) {
+    return (
+      <div style={{ height: 44 }} className="flex items-center gap-3 px-4 border-b border-zinc-800 bg-zinc-950">
+        <button
+          onClick={handleBack}
+          className="flex items-center gap-1.5 text-sm text-zinc-300 hover:text-white cursor-pointer"
+        >
+          <ArrowLeft size={16} /> กลับ Hub
+        </button>
+        <div className="h-4 w-px bg-zinc-700" />
+        <span className="text-lg">{active.icon}</span>
+        <span className="text-sm font-medium text-white">{active.name}</span>
+      </div>
+    )
+  }
+
   const installedModules = CATALOG.filter((m) => installed.includes(m.id))
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Top bar */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
         <div className="flex items-center gap-3">
           <Logo size={36} />
@@ -62,12 +99,17 @@ export function HubView({ user }: { user: AuthUser | null }) {
         </div>
       </header>
 
-      {/* Module grid */}
       <main className="flex-1 p-6">
         <div className="flex items-baseline justify-between mb-4">
           <h2 className="text-lg font-semibold text-white">โมดูลของฉัน</h2>
           <span className="text-xs text-zinc-500">{installedModules.length} ติดตั้งแล้ว</span>
         </div>
+
+        {error && (
+          <div className="mb-4 text-sm text-red-400 bg-red-950/40 border border-red-900/50 rounded-lg px-3 py-2">
+            {error}
+          </div>
+        )}
 
         {installedModules.length === 0 ? (
           <EmptyState onAdd={() => setAdding(true)} />
@@ -76,7 +118,7 @@ export function HubView({ user }: { user: AuthUser | null }) {
             {installedModules.map((m) => (
               <button
                 key={m.id}
-                onClick={() => setOpened(m)}
+                onClick={() => handleOpen(m)}
                 className="text-left bg-zinc-900 border border-zinc-800 rounded-xl p-5 hover:border-violet-600/60 hover:bg-zinc-900/60 transition-colors cursor-pointer"
               >
                 <div className="text-3xl mb-3">{m.icon}</div>
@@ -84,8 +126,6 @@ export function HubView({ user }: { user: AuthUser | null }) {
                 <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{m.description}</p>
               </button>
             ))}
-
-            {/* Add card */}
             <button
               onClick={() => setAdding(true)}
               className="flex flex-col items-center justify-center gap-2 min-h-[140px] rounded-xl border border-dashed border-zinc-700 text-zinc-500 hover:border-violet-600 hover:text-violet-400 transition-colors cursor-pointer"
@@ -104,7 +144,7 @@ export function HubView({ user }: { user: AuthUser | null }) {
           onInstalled={(id) => persist([...installed, id])}
         />
       )}
-      {opened && <OpenModuleDialog module={opened} onClose={() => setOpened(null)} />}
+      {opening && <OpeningOverlay module={opening} />}
     </div>
   )
 }
@@ -127,6 +167,18 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
   )
 }
 
+function OpeningOverlay({ module }: { module: ModuleDef }) {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-zinc-950/90 backdrop-blur-sm">
+      <div className="text-5xl">{module.icon}</div>
+      <p className="flex items-center gap-2 text-zinc-300">
+        <Loader2 className="animate-spin" size={18} /> กำลังเปิด {module.name}…
+      </p>
+      <p className="text-xs text-zinc-600">เริ่มเซิร์ฟเวอร์ครั้งแรกอาจใช้เวลาสักครู่</p>
+    </div>
+  )
+}
+
 function AddModuleDialog({
   installed,
   onClose,
@@ -145,7 +197,6 @@ function AddModuleDialog({
     if (!m.available || installing) return
     setInstalling(m.id)
     setProgress(0)
-    // Simulated download/install — replaced by a real bundle downloader later.
     const timer = setInterval(() => {
       setProgress((p) => {
         if (p >= 100) {
@@ -170,7 +221,6 @@ function AddModuleDialog({
             </button>
           )}
         </div>
-
         <div className="p-4 flex flex-col gap-2 max-h-[60vh] overflow-y-auto">
           {choices.length === 0 && (
             <p className="text-sm text-zinc-500 text-center py-8">ติดตั้งครบทุกโมดูลแล้ว 🎉</p>
@@ -211,31 +261,6 @@ function AddModuleDialog({
             )
           })}
         </div>
-      </div>
-    </Overlay>
-  )
-}
-
-function OpenModuleDialog({ module, onClose }: { module: ModuleDef; onClose: () => void }) {
-  return (
-    <Overlay onClose={onClose}>
-      <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center">
-        <div className="text-5xl mb-3">{module.icon}</div>
-        <h3 className="text-lg font-semibold text-white">{module.name}</h3>
-        <p className="text-sm text-zinc-500 mt-2">
-          กำลังจะเปิด {module.name} ในหน้าต่าง PhoenixNest นี้
-          <br />
-          <span className="text-zinc-600 text-xs">(การฝังหน้าต่างโมดูลจริงอยู่ใน phase ถัดไป)</span>
-        </p>
-        <div className="mt-3 inline-flex items-center gap-1.5 text-xs text-emerald-400">
-          <Check size={14} /> ติดตั้งแล้ว
-        </div>
-        <button
-          onClick={onClose}
-          className="mt-5 w-full py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg font-medium transition-colors cursor-pointer"
-        >
-          เข้าใจแล้ว
-        </button>
       </div>
     </Overlay>
   )
