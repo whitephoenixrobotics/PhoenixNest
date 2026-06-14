@@ -419,7 +419,7 @@ function EditionChooser({
                 </button>
                 <p className="text-center text-[11px] text-zinc-500 mt-2">
                   {isInstalling && progress
-                    ? `${PHASE_LABEL[progress.phase]}${progress.parts && progress.parts > 1 ? ` · พาร์ท ${progress.part}/${progress.parts}` : ''}`
+                    ? `${PHASE_LABEL[progress.phase]} ${progress.percent}%${progress.parts && progress.parts > 1 ? ` · พาร์ท ${progress.part}/${progress.parts}` : ''}`
                     : available
                       ? `ดาวน์โหลดตอนติดตั้ง ~${fmtSize(ed?.size)}`
                       : 'เร็ว ๆ นี้'}
@@ -483,7 +483,8 @@ function AddModuleDialog({
                         <div className="h-full bg-violet-500 transition-all" style={{ width: `${progress.percent}%` }} />
                       </div>
                       <div className="mt-1 text-[10px] text-zinc-500">
-                        {PHASE_LABEL[progress.phase]} {progress.phase === 'download' ? `${progress.percent}%` : ''}
+                        {PHASE_LABEL[progress.phase]}{' '}
+                        {progress.phase === 'download' || progress.phase === 'extract' ? `${progress.percent}%` : ''}
                         {progress.parts && progress.parts > 1 ? ` · พาร์ท ${progress.part}/${progress.parts}` : ''}
                         {progress.total ? ` · ${fmtMB(progress.got)}/${fmtMB(progress.total)}` : ''}
                       </div>

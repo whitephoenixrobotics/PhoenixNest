@@ -11,7 +11,7 @@ const fs = require('fs')
 const https = require('https')
 const http = require('http')
 const crypto = require('crypto')
-const { execFile } = require('child_process')
+const yauzl = require('yauzl')
 
 const REGISTRY_URL =
   process.env.PHOENIXNEST_REGISTRY_URL ||
@@ -96,16 +96,28 @@ function streamTo(url, out, onChunk, redirects = 0) {
   })
 }
 
+function installLog(s) {
+  try {
+    fs.appendFileSync(path.join(dataDir(), 'install.log'), s + '\n')
+  } catch {
+    /* ignore */
+  }
+}
+
 // Download a single-file zip.
 async function downloadFile(url, dest, onProgress) {
   const out = fs.createWriteStream(dest)
   let got = 0
   let total = 0
-  await streamTo(url, out, (n, t) => {
-    got += n
-    total = t
-    if (onProgress) onProgress(got, total)
-  }).finally(() => out.close())
+  try {
+    await streamTo(url, out, (n, t) => {
+      got += n
+      total = t
+      if (onProgress) onProgress(got, total)
+    })
+  } finally {
+    await new Promise((r) => out.end(r)) // flush all buffered data before returning
+  }
   return { got, total }
 }
 
@@ -125,7 +137,7 @@ async function downloadParts(urls, dest, onProgress) {
       })
     }
   } finally {
-    out.close()
+    await new Promise((r) => out.end(r)) // flush remaining bytes (was a truncation risk)
   }
 }
 
@@ -139,17 +151,78 @@ function sha256File(p) {
   })
 }
 
-// Extract a zip. Windows 10+ ships bsdtar (handles zip); fall back to PowerShell.
-function extractZip(zip, destDir) {
+function dirHasFiles(dir) {
+  try {
+    return fs.readdirSync(dir).length > 0
+  } catch {
+    return false
+  }
+}
+
+// Extract a zip with yauzl (pure JS — handles zip64 + large files, no external
+// tar/PowerShell binary whose path parsing varies). Streams each entry and
+// reports per-entry progress. onProgress(percent).
+function extractZip(zip, destDir, onProgress) {
   fs.mkdirSync(destDir, { recursive: true })
   return new Promise((resolve, reject) => {
-    execFile('tar', ['-xf', zip, '-C', destDir], (err) => {
-      if (!err) return resolve()
-      execFile(
-        'powershell',
-        ['-NoProfile', '-Command', `Expand-Archive -LiteralPath '${zip}' -DestinationPath '${destDir}' -Force`],
-        (err2) => (err2 ? reject(err2) : resolve()),
-      )
+    yauzl.open(zip, { lazyEntries: true }, (err, zf) => {
+      if (err) return reject(err)
+      const total = zf.entryCount || 0
+      let done = 0
+      let lastPct = -1
+      const report = () => {
+        if (total && onProgress) {
+          const p = Math.min(99, Math.round((done / total) * 100))
+          if (p !== lastPct) {
+            lastPct = p
+            onProgress(p)
+          }
+        }
+      }
+      const fail = (e) => {
+        try {
+          zf.close()
+        } catch {
+          /* ignore */
+        }
+        reject(e)
+      }
+      zf.on('error', fail)
+      zf.on('entry', (entry) => {
+        const outPath = path.join(destDir, entry.fileName)
+        // Zip-slip guard: never write outside destDir.
+        if (!outPath.startsWith(destDir)) {
+          done++
+          report()
+          return zf.readEntry()
+        }
+        if (/\/$/.test(entry.fileName)) {
+          fs.mkdirSync(outPath, { recursive: true })
+          done++
+          report()
+          return zf.readEntry()
+        }
+        fs.mkdirSync(path.dirname(outPath), { recursive: true })
+        zf.openReadStream(entry, (e2, rs) => {
+          if (e2) return fail(e2)
+          const ws = fs.createWriteStream(outPath)
+          rs.on('error', fail)
+          ws.on('error', fail)
+          ws.on('close', () => {
+            done++
+            report()
+            zf.readEntry()
+          })
+          rs.pipe(ws)
+        })
+      })
+      zf.on('end', () => {
+        installLog(`[extract] yauzl done entries=${total} hasFiles=${dirHasFiles(destDir)}`)
+        if (!dirHasFiles(destDir)) return reject(new Error('extraction produced no files'))
+        if (onProgress) onProgress(100)
+        resolve()
+      })
+      zf.readEntry()
     })
   })
 }
@@ -173,18 +246,25 @@ async function installModule(spec, onProgress) {
     throw new Error('no url or parts for module')
   }
 
+  try {
+    installLog(`[install ${spec.id}/${spec.edition || '-'}] downloaded ${fs.statSync(tmpZip).size} bytes`)
+  } catch {
+    /* ignore */
+  }
+
   if (spec.sha256) {
     onProgress({ phase: 'verify', percent: 100 })
     const h = await sha256File(tmpZip)
+    installLog(`[install] sha got=${h.slice(0, 16)} want=${spec.sha256.slice(0, 16)} match=${h.toLowerCase() === spec.sha256.toLowerCase()}`)
     if (h.toLowerCase() !== spec.sha256.toLowerCase()) {
       fs.rmSync(tmpZip, { force: true })
       throw new Error('checksum mismatch')
     }
   }
 
-  onProgress({ phase: 'extract', percent: 100 })
+  onProgress({ phase: 'extract', percent: 0 })
   fs.rmSync(dir, { recursive: true, force: true })
-  await extractZip(tmpZip, dir)
+  await extractZip(tmpZip, dir, (pct) => onProgress({ phase: 'extract', percent: pct }))
   fs.rmSync(tmpZip, { force: true })
 
   let manifest = {}
