@@ -67,15 +67,16 @@ async function fetchRegistry() {
   return JSON.parse(await httpGetText(REGISTRY_URL))
 }
 
-// Download to a file, following redirects, reporting (got,total) bytes.
-function downloadFile(url, dest, onProgress, redirects = 0) {
+// Stream a URL into an open write stream (follows redirects). Reports per-call
+// (got,total) for THIS url; `baseGot` lets callers accumulate across parts.
+function streamTo(url, out, onChunk, redirects = 0) {
   return new Promise((resolve, reject) => {
     if (redirects > 5) return reject(new Error('too many redirects'))
     const lib = url.startsWith('https') ? https : http
     const req = lib.get(url, { headers: { 'User-Agent': 'PhoenixNest' } }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume()
-        return downloadFile(res.headers.location, dest, onProgress, redirects + 1).then(resolve, reject)
+        return streamTo(res.headers.location, out, onChunk, redirects + 1).then(resolve, reject)
       }
       if (res.statusCode !== 200) {
         res.resume()
@@ -83,17 +84,49 @@ function downloadFile(url, dest, onProgress, redirects = 0) {
       }
       const total = parseInt(res.headers['content-length'] || '0', 10)
       let got = 0
-      const out = fs.createWriteStream(dest)
       res.on('data', (c) => {
         got += c.length
-        if (onProgress) onProgress(got, total)
+        if (onChunk) onChunk(c.length, total)
       })
-      res.pipe(out)
-      out.on('finish', () => out.close(() => resolve({ got, total })))
-      out.on('error', reject)
+      res.on('end', () => resolve({ got, total }))
+      res.on('error', reject)
+      res.pipe(out, { end: false })
     })
     req.on('error', reject)
   })
+}
+
+// Download a single-file zip.
+async function downloadFile(url, dest, onProgress) {
+  const out = fs.createWriteStream(dest)
+  let got = 0
+  let total = 0
+  await streamTo(url, out, (n, t) => {
+    got += n
+    total = t
+    if (onProgress) onProgress(got, total)
+  }).finally(() => out.close())
+  return { got, total }
+}
+
+// Download a multi-part zip (GitHub's 2GB/asset limit) and concatenate the parts
+// in order into one file. Reports overall percent across all parts.
+async function downloadParts(urls, dest, onProgress) {
+  fs.rmSync(dest, { force: true })
+  const out = fs.createWriteStream(dest)
+  try {
+    for (let i = 0; i < urls.length; i++) {
+      let partGot = 0
+      await streamTo(urls[i], out, (n, total) => {
+        partGot += n
+        const frac = total ? partGot / total : 0
+        const percent = Math.round(((i + frac) / urls.length) * 100)
+        if (onProgress) onProgress({ percent, part: i + 1, parts: urls.length })
+      })
+    }
+  } finally {
+    out.close()
+  }
 }
 
 function sha256File(p) {
@@ -121,21 +154,29 @@ function extractZip(zip, destDir) {
   })
 }
 
-// Full install: download → verify → extract → record. onProgress({phase,percent}).
-async function installModule(mod, onProgress) {
-  const dir = path.join(modulesDir(), mod.id)
-  const tmpZip = path.join(dataDir(), `${mod.id}-${mod.latest}.zip`)
+// Full install. `spec` = resolved download spec:
+//   { id, name, version, edition?, type, sha256, url?  |  parts?: string[] }
+// onProgress({ phase, percent, part?, parts? }).
+async function installModule(spec, onProgress) {
+  const dir = path.join(modulesDir(), spec.id)
+  const tmpZip = path.join(dataDir(), `${spec.id}-${spec.version}.zip`)
   fs.mkdirSync(dataDir(), { recursive: true })
 
   onProgress({ phase: 'download', percent: 0 })
-  await downloadFile(mod.url, tmpZip, (got, total) =>
-    onProgress({ phase: 'download', percent: total ? Math.round((got / total) * 100) : 0, got, total }),
-  )
+  if (Array.isArray(spec.parts) && spec.parts.length) {
+    await downloadParts(spec.parts, tmpZip, (p) => onProgress({ phase: 'download', ...p }))
+  } else if (spec.url) {
+    await downloadFile(spec.url, tmpZip, (got, total) =>
+      onProgress({ phase: 'download', percent: total ? Math.round((got / total) * 100) : 0, got, total }),
+    )
+  } else {
+    throw new Error('no url or parts for module')
+  }
 
-  if (mod.sha256) {
+  if (spec.sha256) {
     onProgress({ phase: 'verify', percent: 100 })
     const h = await sha256File(tmpZip)
-    if (h.toLowerCase() !== mod.sha256.toLowerCase()) {
+    if (h.toLowerCase() !== spec.sha256.toLowerCase()) {
       fs.rmSync(tmpZip, { force: true })
       throw new Error('checksum mismatch')
     }
@@ -150,20 +191,21 @@ async function installModule(mod, onProgress) {
   try {
     manifest = JSON.parse(fs.readFileSync(path.join(dir, 'module.json'), 'utf-8'))
   } catch {
-    /* no manifest — fall back to registry fields */
+    /* no manifest — fall back to spec fields */
   }
 
   const installed = readInstalled()
-  installed[mod.id] = {
-    version: mod.latest,
+  installed[spec.id] = {
+    version: spec.version,
+    edition: spec.edition || manifest.edition || null,
     path: dir,
-    type: manifest.type || mod.type || 'static',
+    type: manifest.type || spec.type || 'static',
     manifest,
     installedAt: new Date().toISOString(),
   }
   writeInstalled(installed)
   onProgress({ phase: 'done', percent: 100 })
-  return installed[mod.id]
+  return installed[spec.id]
 }
 
 function uninstallModule(id) {

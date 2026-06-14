@@ -22,6 +22,8 @@ export interface RegistryModule {
   sha256?: string
   size?: number
   available?: boolean
+  edition?: 'cpu' | 'gpu' // which edition would be installed on this machine
+  editions?: Record<string, { latest?: string; url?: string; parts?: string[]; sha256?: string; size?: number }>
 }
 
 export interface InstalledInfo {
@@ -39,6 +41,8 @@ export interface InstallProgress {
   percent: number
   got?: number
   total?: number
+  part?: number
+  parts?: number
 }
 
 export interface PhoenixNestBridge {

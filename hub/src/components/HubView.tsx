@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, LogOut, X, Loader2, ArrowLeft, ShieldCheck, Download } from 'lucide-react'
+import { Plus, LogOut, X, Loader2, ArrowLeft, ShieldCheck, Download, Trash2 } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 import { signOut, type AuthUser } from '@/lib/auth'
 import {
@@ -24,6 +24,8 @@ export function HubView({ user }: { user: AuthUser | null }) {
   const [active, setActive] = useState<RegistryModule | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [progress, setProgress] = useState<InstallProgress | null>(null)
+  const [confirmDel, setConfirmDel] = useState<RegistryModule | null>(null)
+  const [removing, setRemoving] = useState(false)
 
   const refreshInstalled = useCallback(async () => {
     if (!window.phoenixNest) return
@@ -68,6 +70,16 @@ export function HubView({ user }: { user: AuthUser | null }) {
     setProgress(null)
     if (res.ok) await refreshInstalled()
     else setError(res.error || 'ติดตั้งไม่สำเร็จ')
+  }
+
+  async function doUninstall() {
+    if (!confirmDel) return
+    setRemoving(true)
+    const res = await window.phoenixNest!.uninstallModule(confirmDel.id)
+    setRemoving(false)
+    setConfirmDel(null)
+    if (res.ok) await refreshInstalled()
+    else setError(res.error || 'ลบไม่สำเร็จ')
   }
 
   // Embedded module open → render only the back bar (native view covers the rest).
@@ -143,16 +155,27 @@ export function HubView({ user }: { user: AuthUser | null }) {
         ) : (
           <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
             {installedModules.map((m) => (
-              <button
+              <div
                 key={m.id}
-                onClick={() => handleOpen(m)}
-                className="text-left bg-zinc-900 border border-zinc-800 rounded-xl p-5 hover:border-violet-600/60 hover:bg-zinc-900/60 transition-colors cursor-pointer"
+                className="group relative bg-zinc-900 border border-zinc-800 rounded-xl hover:border-violet-600/60 hover:bg-zinc-900/60 transition-colors"
               >
-                <div className="text-3xl mb-3">{m.icon}</div>
-                <div className="font-semibold text-white">{m.name}</div>
-                <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{m.description}</p>
-                {installed[m.id]?.dev && <span className="text-[10px] text-amber-400/80">dev</span>}
-              </button>
+                <button onClick={() => handleOpen(m)} className="w-full text-left p-5 cursor-pointer">
+                  <div className="text-3xl mb-3">{m.icon}</div>
+                  <div className="font-semibold text-white">{m.name}</div>
+                  <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{m.description}</p>
+                  {installed[m.id]?.dev && <span className="text-[10px] text-amber-400/80">dev</span>}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setConfirmDel(m)
+                  }}
+                  title="ลบโมดูล"
+                  className="absolute top-3 right-3 p-1.5 rounded-lg text-zinc-600 opacity-0 group-hover:opacity-100 hover:bg-red-600/15 hover:text-red-400 transition-all cursor-pointer"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
             ))}
             <button
               onClick={() => setAdding(true)}
@@ -175,7 +198,57 @@ export function HubView({ user }: { user: AuthUser | null }) {
         />
       )}
       {opening && <OpeningOverlay module={opening} />}
+      {confirmDel && (
+        <ConfirmDeleteDialog
+          module={confirmDel}
+          busy={removing}
+          onCancel={() => setConfirmDel(null)}
+          onConfirm={doUninstall}
+        />
+      )}
     </div>
+  )
+}
+
+function ConfirmDeleteDialog({
+  module,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  module: RegistryModule
+  busy: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <Overlay onClose={busy ? undefined : onCancel}>
+      <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center">
+        <div className="w-12 h-12 mx-auto rounded-full bg-red-500/10 flex items-center justify-center mb-3">
+          <Trash2 className="text-red-400" size={22} />
+        </div>
+        <h3 className="text-base font-semibold text-white">ลบ {module.name}?</h3>
+        <p className="text-sm text-zinc-500 mt-2">
+          จะลบไฟล์โมดูลออกจากเครื่อง ติดตั้งใหม่ได้ภายหลังจากหน้า “เพิ่มโมดูล”
+        </p>
+        <div className="mt-5 flex gap-2">
+          <button
+            onClick={onCancel}
+            disabled={busy}
+            className="flex-1 py-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium cursor-pointer disabled:opacity-50"
+          >
+            ยกเลิก
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            className="flex-1 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-medium cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+          >
+            {busy ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />} ลบ
+          </button>
+        </div>
+      </div>
+    </Overlay>
   )
 }
 
@@ -269,6 +342,7 @@ function AddModuleDialog({
                       </div>
                       <div className="mt-1 text-[10px] text-zinc-500">
                         {PHASE_LABEL[progress.phase]} {progress.phase === 'download' ? `${progress.percent}%` : ''}
+                        {progress.parts && progress.parts > 1 ? ` · พาร์ท ${progress.part}/${progress.parts}` : ''}
                         {progress.total ? ` · ${fmtMB(progress.got)}/${fmtMB(progress.total)}` : ''}
                       </div>
                     </div>

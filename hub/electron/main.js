@@ -169,6 +169,29 @@ function waitForHttp(url, timeoutMs) {
   })
 }
 
+// Is an NVIDIA GPU present? (decides cpu vs gpu module edition)
+function hasNvidiaGpu() {
+  try {
+    execSync('nvidia-smi -L', { stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Resolve a registry module entry into a concrete download spec, picking the
+// right edition (gpu/cpu) when the entry has `editions`.
+function resolveSpec(mod) {
+  const base = { id: mod.id, name: mod.name, type: mod.type }
+  if (mod.editions) {
+    const want = hasNvidiaGpu() && mod.editions.gpu ? 'gpu' : mod.editions.cpu ? 'cpu' : Object.keys(mod.editions)[0]
+    const ed = mod.editions[want]
+    if (!ed) return null
+    return { ...base, edition: want, version: ed.latest, url: ed.url, parts: ed.parts, sha256: ed.sha256 }
+  }
+  return { ...base, version: mod.latest, url: mod.url, parts: mod.parts, sha256: mod.sha256 }
+}
+
 // True when ai-flow can run from the monorepo source (dev checkout).
 function aiFlowDevAvailable() {
   return (
@@ -215,9 +238,57 @@ async function openStatic(installed) {
   return { ok: true }
 }
 
-// Service module from an installed bundle (backend exe + frontend). Phase 3.
+// Service module from an installed bundle: spawn the PyInstaller backend exe +
+// the Next standalone frontend (via Electron's bundled node), then embed.
 async function openServiceBundle(installed) {
-  return { ok: false, error: `running installed service modules is not wired yet (${installed.version})` }
+  const m = installed.manifest || {}
+  const be = m.backend || {}
+  const fe = m.frontend || {}
+  const root = installed.path
+  const bePort = be.port || 8000
+  const fePort = fe.port || 3100
+
+  killPort(bePort)
+  killPort(fePort)
+
+  // Backend: self-contained PyInstaller exe (no venv needed).
+  const beExe = path.join(root, be.exe || 'backend/phoenix-api.exe')
+  if (!fs.existsSync(beExe)) return { ok: false, error: `backend not found: ${beExe}` }
+  const beProc = spawn(beExe, [], {
+    cwd: path.dirname(beExe),
+    // be.env carries the module's runtime config (e.g. SUPABASE_URL so the
+    // backend can fetch JWKS to validate the handed-over Supabase token).
+    env: { ...process.env, ...(be.env || {}), [be.portEnv || 'PHOENIX_API_PORT']: String(bePort) },
+    windowsHide: true,
+    stdio: ['ignore', logFd('ai-flow-backend.log'), logFd('ai-flow-backend.log')],
+  })
+  beProc.on('error', (e) => console.error('[module] bundle backend error:', e.message))
+  procs.push(beProc)
+
+  // Frontend: Next standalone server, run with Electron's node (ELECTRON_RUN_AS_NODE).
+  const feEntry = path.join(root, fe.entry || 'web/apps/web/server.js')
+  if (!fs.existsSync(feEntry)) return { ok: false, error: `frontend not found: ${feEntry}` }
+  const feProc = spawn(process.execPath, [feEntry], {
+    cwd: path.dirname(feEntry),
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', PORT: String(fePort), HOSTNAME: '127.0.0.1' },
+    windowsHide: true,
+    stdio: ['ignore', logFd('ai-flow-frontend.log'), logFd('ai-flow-frontend.log')],
+  })
+  feProc.on('error', (e) => console.error('[module] bundle frontend error:', e.message))
+  procs.push(feProc)
+
+  try {
+    await waitForHttp(be.health || `http://127.0.0.1:${bePort}/health`, 60000)
+    await waitForHttp(fe.ready || `http://127.0.0.1:${fePort}/`, 60000)
+  } catch (e) {
+    stopModule()
+    return { ok: false, error: String(e.message || e) }
+  }
+
+  createModuleView(true)
+  await moduleView.webContents.loadURL(m.url || `http://127.0.0.1:${fePort}`)
+  if (process.env.PHOENIXNEST_DEBUG) moduleView.webContents.openDevTools({ mode: 'detach' })
+  return { ok: true }
 }
 
 // Service module (ai-flow) from the monorepo source — the Phase 1 dev path.
@@ -316,7 +387,16 @@ ipcMain.on('module:get-session', (e) => {
 // ── Module registry + install ──
 ipcMain.handle('module:registry', async () => {
   try {
-    return { ok: true, registry: await installer.fetchRegistry() }
+    const registry = await installer.fetchRegistry()
+    // Enrich each module with the edition that WOULD be installed on this machine,
+    // so the renderer can show availability + size without knowing GPU details.
+    for (const mod of registry.modules || []) {
+      const spec = resolveSpec(mod)
+      mod.available = mod.available !== false && !!spec && (!!spec.url || !!spec.parts)
+      if (spec?.edition) mod.edition = spec.edition
+      if (mod.editions && spec?.edition) mod.size = mod.editions[spec.edition]?.size
+    }
+    return { ok: true, registry }
   } catch (e) {
     return { ok: false, error: String(e.message || e), registry: { modules: [] } }
   }
@@ -336,8 +416,9 @@ ipcMain.handle('module:install', async (e, id) => {
     const reg = await installer.fetchRegistry()
     const mod = (reg.modules || []).find((m) => m.id === id)
     if (!mod) return { ok: false, error: `module not in registry: ${id}` }
-    if (!mod.url) return { ok: false, error: `module has no download URL: ${id}` }
-    const info = await installer.installModule(mod, (p) => {
+    const spec = resolveSpec(mod)
+    if (!spec || (!spec.url && !spec.parts)) return { ok: false, error: `no download for module: ${id}` }
+    const info = await installer.installModule(spec, (p) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('module:install-progress', { id, ...p })
       }
