@@ -201,6 +201,9 @@ async function installModule(spec, onProgress) {
     path: dir,
     type: manifest.type || spec.type || 'static',
     manifest,
+    // Registry-provided runtime config (merged into the backend env at launch),
+    // so config can be fixed without rebuilding the bundle.
+    runtimeEnv: spec.runtimeEnv || null,
     installedAt: new Date().toISOString(),
   }
   writeInstalled(installed)

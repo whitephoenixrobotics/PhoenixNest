@@ -24,6 +24,9 @@ export interface RegistryModule {
   available?: boolean
   edition?: 'cpu' | 'gpu' // which edition would be installed on this machine
   editions?: Record<string, { latest?: string; url?: string; parts?: string[]; sha256?: string; size?: number }>
+  // Public runtime config injected into the module's backend at launch (e.g.
+  // SUPABASE_URL) — lets the registry fix config without rebuilding the bundle.
+  runtimeEnv?: Record<string, string>
 }
 
 export interface InstalledInfo {

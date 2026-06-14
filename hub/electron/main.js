@@ -182,7 +182,7 @@ function hasNvidiaGpu() {
 // Resolve a registry module entry into a concrete download spec, picking the
 // right edition (gpu/cpu) when the entry has `editions`.
 function resolveSpec(mod) {
-  const base = { id: mod.id, name: mod.name, type: mod.type }
+  const base = { id: mod.id, name: mod.name, type: mod.type, runtimeEnv: mod.runtimeEnv || null }
   if (mod.editions) {
     const want = hasNvidiaGpu() && mod.editions.gpu ? 'gpu' : mod.editions.cpu ? 'cpu' : Object.keys(mod.editions)[0]
     const ed = mod.editions[want]
@@ -256,9 +256,16 @@ async function openServiceBundle(installed) {
   if (!fs.existsSync(beExe)) return { ok: false, error: `backend not found: ${beExe}` }
   const beProc = spawn(beExe, [], {
     cwd: path.dirname(beExe),
-    // be.env carries the module's runtime config (e.g. SUPABASE_URL so the
-    // backend can fetch JWKS to validate the handed-over Supabase token).
-    env: { ...process.env, ...(be.env || {}), [be.portEnv || 'PHOENIX_API_PORT']: String(bePort) },
+    // Runtime config for the backend (e.g. SUPABASE_URL so it can fetch JWKS to
+    // validate the handed-over Supabase token). Comes from the bundle's
+    // module.json (be.env) and/or the registry (installed.runtimeEnv) — the
+    // latter lets us fix config without rebuilding/re-uploading the bundle.
+    env: {
+      ...process.env,
+      ...(be.env || {}),
+      ...(installed.runtimeEnv || {}),
+      [be.portEnv || 'PHOENIX_API_PORT']: String(bePort),
+    },
     windowsHide: true,
     stdio: ['ignore', logFd('ai-flow-backend.log'), logFd('ai-flow-backend.log')],
   })
