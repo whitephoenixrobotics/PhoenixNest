@@ -47,3 +47,6 @@ flow/apps/api/storage/
 
 # Temp electron extraction (manual binary install)
 hub/_eltest/
+
+# Module process logs (runtime diagnostics)
+hub/.module-logs/

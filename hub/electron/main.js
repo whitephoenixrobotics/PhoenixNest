@@ -3,7 +3,35 @@
 const { app, BrowserWindow, WebContentsView, shell, ipcMain } = require('electron')
 const path = require('path')
 const http = require('http')
-const { spawn } = require('child_process')
+const fs = require('fs')
+const { spawn, execSync } = require('child_process')
+
+// Free a TCP port by killing whatever is listening on it (Windows).
+function killPort(port) {
+  try {
+    execSync(
+      `for /f "tokens=5" %a in ('netstat -aon ^| findstr :${port} ^| findstr LISTENING') do taskkill /F /PID %a`,
+      { shell: 'cmd.exe', stdio: 'ignore' },
+    )
+  } catch {
+    /* nothing listening — fine */
+  }
+}
+
+// Module process logs (gitignored) — for diagnosing embedded modules.
+const LOG_DIR = path.join(__dirname, '..', '.module-logs')
+try {
+  fs.mkdirSync(LOG_DIR, { recursive: true })
+} catch {
+  /* ignore */
+}
+function logFd(name) {
+  try {
+    return fs.openSync(path.join(LOG_DIR, name), 'w')
+  } catch {
+    return 'ignore'
+  }
+}
 
 const APP_URL = process.env.PHOENIXNEST_APP_URL || 'http://localhost:3000'
 const LOOPBACK_PORT = 53682
@@ -31,8 +59,10 @@ const MODULES = {
       cwd: WEB_DIR,
       // Bump the heap — Flow's Turbopack compile OOMs under contention otherwise.
       env: { NODE_OPTIONS: '--max-old-space-size=4096' },
-      ready: 'http://127.0.0.1:3100',
-      url: 'http://127.0.0.1:3100',
+      // Use localhost (matches how `next dev` binds) so the dev HMR websocket
+      // connects — loading via 127.0.0.1 made HMR reject + full-reload in a loop.
+      ready: 'http://localhost:3100',
+      url: 'http://localhost:3100',
     },
   },
 }
@@ -144,21 +174,29 @@ async function openModule(id) {
   if (!cfg) return { ok: false, error: `unknown module: ${id}` }
   if (moduleView) return { ok: true } // already open
 
+  // Free ports from any leftover module processes (crashes / prior runs).
+  killPort(8000)
+  killPort(3100)
+
   // 1. Backend
+  const beOut = logFd('ai-flow-backend.log')
   const be = spawn(cfg.backend.cmd, cfg.backend.args, {
     cwd: cfg.backend.cwd,
     env: { ...process.env, ...cfg.backend.env },
     windowsHide: true,
+    stdio: ['ignore', beOut, beOut],
   })
   be.on('error', (e) => console.error('[module] backend spawn error:', e.message))
   procs.push(be)
 
   // 2. Frontend (Next dev via system node)
+  const feOut = logFd('ai-flow-frontend.log')
   const fe = spawn(cfg.frontend.cmd, cfg.frontend.args, {
     cwd: cfg.frontend.cwd,
     env: { ...process.env, ...cfg.frontend.env },
     windowsHide: true,
     shell: true,
+    stdio: ['ignore', feOut, feOut],
   })
   fe.on('error', (e) => console.error('[module] frontend spawn error:', e.message))
   procs.push(fe)
@@ -172,7 +210,7 @@ async function openModule(id) {
     return { ok: false, error: String(e.message || e) }
   }
 
-  // 4. Embed the frontend in a WebContentsView, seeding the session first
+  // 4. Embed the frontend in a WebContentsView (seeds the session via preload).
   moduleView = new WebContentsView({
     webPreferences: {
       preload: path.join(__dirname, 'flow-preload.js'),
@@ -183,6 +221,7 @@ async function openModule(id) {
   mainWindow.contentView.addChildView(moduleView)
   layoutModuleView()
   await moduleView.webContents.loadURL(cfg.frontend.url)
+  if (process.env.PHOENIXNEST_DEBUG) moduleView.webContents.openDevTools({ mode: 'detach' })
   return { ok: true }
 }
 
