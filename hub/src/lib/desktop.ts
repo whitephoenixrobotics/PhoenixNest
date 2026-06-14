@@ -11,12 +11,47 @@ export interface OpenModuleResult {
   error?: string
 }
 
+export interface RegistryModule {
+  id: string
+  name: string
+  icon?: string
+  description?: string
+  type?: 'static' | 'service'
+  latest?: string
+  url?: string
+  sha256?: string
+  size?: number
+  available?: boolean
+}
+
+export interface InstalledInfo {
+  version: string
+  type?: 'static' | 'service'
+  path?: string
+  dev?: boolean
+}
+
+export type InstalledMap = Record<string, InstalledInfo>
+
+export interface InstallProgress {
+  id: string
+  phase: 'download' | 'verify' | 'extract' | 'done'
+  percent: number
+  got?: number
+  total?: number
+}
+
 export interface PhoenixNestBridge {
   isDesktop: true
   version: string
   openExternal: (url: string) => void
   openModule: (id: string, storage: StorageEntry[]) => Promise<OpenModuleResult>
   closeModule: () => Promise<{ ok: boolean }>
+  getRegistry: () => Promise<{ ok: boolean; error?: string; registry: { modules: RegistryModule[] } }>
+  getInstalled: () => Promise<InstalledMap>
+  installModule: (id: string) => Promise<{ ok: boolean; error?: string }>
+  uninstallModule: (id: string) => Promise<{ ok: boolean; error?: string }>
+  onInstallProgress: (cb: (p: InstallProgress) => void) => () => void
 }
 
 /** Collect the Supabase session entries to hand to an embedded module. */

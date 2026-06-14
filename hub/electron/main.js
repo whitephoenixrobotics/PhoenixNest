@@ -5,6 +5,7 @@ const path = require('path')
 const http = require('http')
 const fs = require('fs')
 const { spawn, execSync } = require('child_process')
+const installer = require('./installer')
 
 // Free a TCP port by killing whatever is listening on it (Windows).
 function killPort(port) {
@@ -168,17 +169,62 @@ function waitForHttp(url, timeoutMs) {
   })
 }
 
-// ── Spawn + embed a module ──
+// True when ai-flow can run from the monorepo source (dev checkout).
+function aiFlowDevAvailable() {
+  return (
+    fs.existsSync(path.join(API_DIR, 'venv', 'Scripts', 'python.exe')) &&
+    fs.existsSync(path.join(WEB_DIR, 'node_modules'))
+  )
+}
+
+// Create + embed the WebContentsView. `preload` optional (used by service modules
+// to seed the Supabase session).
+function createModuleView(usePreload) {
+  moduleView = new WebContentsView({
+    webPreferences: {
+      ...(usePreload ? { preload: path.join(__dirname, 'flow-preload.js') } : {}),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  })
+  mainWindow.contentView.addChildView(moduleView)
+  layoutModuleView()
+}
+
+// ── Open dispatcher: installed bundle (static/service) or dev fallback ──
 async function openModule(id) {
-  const cfg = MODULES[id]
-  if (!cfg) return { ok: false, error: `unknown module: ${id}` }
   if (moduleView) return { ok: true } // already open
 
-  // Free ports from any leftover module processes (crashes / prior runs).
+  const installed = installer.readInstalled()[id]
+  if (installed && installed.type === 'static') return openStatic(installed)
+  if (installed && installed.type === 'service') return openServiceBundle(installed)
+
+  // Dev fallback: run ai-flow from the monorepo source.
+  if (id === 'ai-flow' && MODULES[id]) return openServiceDev(MODULES[id])
+
+  return { ok: false, error: `module not installed: ${id}` }
+}
+
+// Static module: load its entry file directly into the embedded view.
+async function openStatic(installed) {
+  const entry = path.join(installed.path, installed.manifest?.entry || 'index.html')
+  if (!fs.existsSync(entry)) return { ok: false, error: `entry not found: ${entry}` }
+  createModuleView(false)
+  await moduleView.webContents.loadFile(entry)
+  if (process.env.PHOENIXNEST_DEBUG) moduleView.webContents.openDevTools({ mode: 'detach' })
+  return { ok: true }
+}
+
+// Service module from an installed bundle (backend exe + frontend). Phase 3.
+async function openServiceBundle(installed) {
+  return { ok: false, error: `running installed service modules is not wired yet (${installed.version})` }
+}
+
+// Service module (ai-flow) from the monorepo source — the Phase 1 dev path.
+async function openServiceDev(cfg) {
   killPort(8000)
   killPort(3100)
 
-  // 1. Backend
   const beOut = logFd('ai-flow-backend.log')
   const be = spawn(cfg.backend.cmd, cfg.backend.args, {
     cwd: cfg.backend.cwd,
@@ -189,7 +235,6 @@ async function openModule(id) {
   be.on('error', (e) => console.error('[module] backend spawn error:', e.message))
   procs.push(be)
 
-  // 2. Frontend (Next dev via system node)
   const feOut = logFd('ai-flow-frontend.log')
   const fe = spawn(cfg.frontend.cmd, cfg.frontend.args, {
     cwd: cfg.frontend.cwd,
@@ -201,7 +246,6 @@ async function openModule(id) {
   fe.on('error', (e) => console.error('[module] frontend spawn error:', e.message))
   procs.push(fe)
 
-  // 3. Wait until both are reachable
   try {
     await waitForHttp(cfg.backend.health, 40000)
     await waitForHttp(cfg.frontend.ready, 90000)
@@ -210,16 +254,7 @@ async function openModule(id) {
     return { ok: false, error: String(e.message || e) }
   }
 
-  // 4. Embed the frontend in a WebContentsView (seeds the session via preload).
-  moduleView = new WebContentsView({
-    webPreferences: {
-      preload: path.join(__dirname, 'flow-preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  })
-  mainWindow.contentView.addChildView(moduleView)
-  layoutModuleView()
+  createModuleView(true)
   await moduleView.webContents.loadURL(cfg.frontend.url)
   if (process.env.PHOENIXNEST_DEBUG) moduleView.webContents.openDevTools({ mode: 'detach' })
   return { ok: true }
@@ -276,6 +311,50 @@ ipcMain.handle('module:close', () => {
 // The embedded module's preload reads the session synchronously at document-start.
 ipcMain.on('module:get-session', (e) => {
   e.returnValue = injectStorage
+})
+
+// ── Module registry + install ──
+ipcMain.handle('module:registry', async () => {
+  try {
+    return { ok: true, registry: await installer.fetchRegistry() }
+  } catch (e) {
+    return { ok: false, error: String(e.message || e), registry: { modules: [] } }
+  }
+})
+
+ipcMain.handle('module:installed', () => {
+  const map = installer.readInstalled()
+  // Surface ai-flow as available in a dev checkout even without a real install.
+  if (!map['ai-flow'] && aiFlowDevAvailable()) {
+    map['ai-flow'] = { version: 'dev', type: 'service', dev: true }
+  }
+  return map
+})
+
+ipcMain.handle('module:install', async (e, id) => {
+  try {
+    const reg = await installer.fetchRegistry()
+    const mod = (reg.modules || []).find((m) => m.id === id)
+    if (!mod) return { ok: false, error: `module not in registry: ${id}` }
+    if (!mod.url) return { ok: false, error: `module has no download URL: ${id}` }
+    const info = await installer.installModule(mod, (p) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('module:install-progress', { id, ...p })
+      }
+    })
+    return { ok: true, info }
+  } catch (err) {
+    return { ok: false, error: String(err.message || err) }
+  }
+})
+
+ipcMain.handle('module:uninstall', (_e, id) => {
+  try {
+    installer.uninstallModule(id)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: String(err.message || err) }
+  }
 })
 
 app.whenReady().then(() => {

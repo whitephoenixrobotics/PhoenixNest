@@ -1,47 +1,54 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, LogOut, X, Loader2, ArrowLeft, ShieldCheck } from 'lucide-react'
+import { Plus, LogOut, X, Loader2, ArrowLeft, ShieldCheck, Download } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 import { signOut, type AuthUser } from '@/lib/auth'
-import { CATALOG, type ModuleDef } from '@/lib/modules'
-import { isDesktop, openModule, closeModule } from '@/lib/desktop'
-
-const STORE_KEY = 'phoenixnest.installed'
+import {
+  isDesktop,
+  openModule,
+  closeModule,
+  type RegistryModule,
+  type InstalledMap,
+  type InstallProgress,
+} from '@/lib/desktop'
 
 export function HubView({ user }: { user: AuthUser | null }) {
   const router = useRouter()
-  const [installed, setInstalled] = useState<string[]>([])
+  const [registry, setRegistry] = useState<RegistryModule[]>([])
+  const [installed, setInstalled] = useState<InstalledMap>({})
+  const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
-  const [opening, setOpening] = useState<ModuleDef | null>(null)
-  const [active, setActive] = useState<ModuleDef | null>(null) // embedded module
+  const [opening, setOpening] = useState<RegistryModule | null>(null)
+  const [active, setActive] = useState<RegistryModule | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [progress, setProgress] = useState<InstallProgress | null>(null)
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORE_KEY)
-      if (raw) setInstalled(JSON.parse(raw))
-    } catch {
-      /* ignore */
-    }
+  const refreshInstalled = useCallback(async () => {
+    if (!window.phoenixNest) return
+    setInstalled(await window.phoenixNest.getInstalled())
   }, [])
 
-  function persist(ids: string[]) {
-    setInstalled(ids)
-    try {
-      localStorage.setItem(STORE_KEY, JSON.stringify(ids))
-    } catch {
-      /* ignore */
-    }
-  }
-
-  async function handleOpen(m: ModuleDef) {
-    setError(null)
-    if (!isDesktop()) {
-      setError('เปิดโมดูลได้เฉพาะในแอป PhoenixNest (desktop)')
+  useEffect(() => {
+    if (!isDesktop() || !window.phoenixNest) {
+      setLoading(false)
+      setError('เปิดผ่านแอป PhoenixNest เพื่อจัดการโมดูล')
       return
     }
+    const unsub = window.phoenixNest.onInstallProgress((p) => setProgress(p))
+    Promise.all([window.phoenixNest.getRegistry(), window.phoenixNest.getInstalled()])
+      .then(([reg, inst]) => {
+        if (reg.ok) setRegistry(reg.registry.modules || [])
+        else setError(reg.error || 'โหลด registry ไม่สำเร็จ')
+        setInstalled(inst)
+      })
+      .finally(() => setLoading(false))
+    return unsub
+  }, [])
+
+  async function handleOpen(m: RegistryModule) {
+    setError(null)
     setOpening(m)
     const res = await openModule(m.id)
     setOpening(null)
@@ -54,15 +61,20 @@ export function HubView({ user }: { user: AuthUser | null }) {
     setActive(null)
   }
 
-  // When a module is embedded, the native view covers everything below the
-  // 44px bar — render just the back bar (must match MODULE_TOPBAR in main.js).
+  async function handleInstall(m: RegistryModule) {
+    setError(null)
+    setProgress({ id: m.id, phase: 'download', percent: 0 })
+    const res = await window.phoenixNest!.installModule(m.id)
+    setProgress(null)
+    if (res.ok) await refreshInstalled()
+    else setError(res.error || 'ติดตั้งไม่สำเร็จ')
+  }
+
+  // Embedded module open → render only the back bar (native view covers the rest).
   if (active) {
     return (
       <div style={{ height: 44 }} className="flex items-center gap-3 px-4 border-b border-zinc-800 bg-zinc-950">
-        <button
-          onClick={handleBack}
-          className="flex items-center gap-1.5 text-sm text-zinc-300 hover:text-white cursor-pointer"
-        >
+        <button onClick={handleBack} className="flex items-center gap-1.5 text-sm text-zinc-300 hover:text-white cursor-pointer">
           <ArrowLeft size={16} /> กลับ Hub
         </button>
         <div className="h-4 w-px bg-zinc-700" />
@@ -72,7 +84,7 @@ export function HubView({ user }: { user: AuthUser | null }) {
     )
   }
 
-  const installedModules = CATALOG.filter((m) => installed.includes(m.id))
+  const installedModules = registry.filter((m) => installed[m.id])
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -122,7 +134,11 @@ export function HubView({ user }: { user: AuthUser | null }) {
           </div>
         )}
 
-        {installedModules.length === 0 ? (
+        {loading ? (
+          <p className="flex items-center gap-2 text-zinc-400">
+            <Loader2 size={16} className="animate-spin" /> กำลังโหลด…
+          </p>
+        ) : installedModules.length === 0 ? (
           <EmptyState onAdd={() => setAdding(true)} />
         ) : (
           <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
@@ -135,6 +151,7 @@ export function HubView({ user }: { user: AuthUser | null }) {
                 <div className="text-3xl mb-3">{m.icon}</div>
                 <div className="font-semibold text-white">{m.name}</div>
                 <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{m.description}</p>
+                {installed[m.id]?.dev && <span className="text-[10px] text-amber-400/80">dev</span>}
               </button>
             ))}
             <button
@@ -150,9 +167,11 @@ export function HubView({ user }: { user: AuthUser | null }) {
 
       {adding && (
         <AddModuleDialog
+          registry={registry}
           installed={installed}
+          progress={progress}
           onClose={() => setAdding(false)}
-          onInstalled={(id) => persist([...installed, id])}
+          onInstall={handleInstall}
         />
       )}
       {opening && <OpeningOverlay module={opening} />}
@@ -178,7 +197,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
   )
 }
 
-function OpeningOverlay({ module }: { module: ModuleDef }) {
+function OpeningOverlay({ module }: { module: RegistryModule }) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-zinc-950/90 backdrop-blur-sm">
       <div className="text-5xl">{module.icon}</div>
@@ -190,43 +209,39 @@ function OpeningOverlay({ module }: { module: ModuleDef }) {
   )
 }
 
+const PHASE_LABEL: Record<InstallProgress['phase'], string> = {
+  download: 'กำลังดาวน์โหลด',
+  verify: 'กำลังตรวจสอบไฟล์',
+  extract: 'กำลังแตกไฟล์',
+  done: 'เสร็จสิ้น',
+}
+
+function fmtMB(b?: number) {
+  return b ? `${(b / 1024 / 1024).toFixed(1)}MB` : ''
+}
+
 function AddModuleDialog({
+  registry,
   installed,
+  progress,
   onClose,
-  onInstalled,
+  onInstall,
 }: {
-  installed: string[]
+  registry: RegistryModule[]
+  installed: InstalledMap
+  progress: InstallProgress | null
   onClose: () => void
-  onInstalled: (id: string) => void
+  onInstall: (m: RegistryModule) => void
 }) {
-  const [installing, setInstalling] = useState<string | null>(null)
-  const [progress, setProgress] = useState(0)
-
-  const choices = CATALOG.filter((m) => !installed.includes(m.id))
-
-  function install(m: ModuleDef) {
-    if (!m.available || installing) return
-    setInstalling(m.id)
-    setProgress(0)
-    const timer = setInterval(() => {
-      setProgress((p) => {
-        if (p >= 100) {
-          clearInterval(timer)
-          onInstalled(m.id)
-          setInstalling(null)
-          return 100
-        }
-        return p + 10
-      })
-    }, 120)
-  }
+  const choices = registry.filter((m) => !installed[m.id])
+  const busy = !!progress
 
   return (
-    <Overlay onClose={installing ? undefined : onClose}>
+    <Overlay onClose={busy ? undefined : onClose}>
       <div className="w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
           <h3 className="font-semibold text-white">เพิ่มโมดูล</h3>
-          {!installing && (
+          {!busy && (
             <button onClick={onClose} className="text-zinc-500 hover:text-white cursor-pointer">
               <X size={18} />
             </button>
@@ -237,33 +252,41 @@ function AddModuleDialog({
             <p className="text-sm text-zinc-500 text-center py-8">ติดตั้งครบทุกโมดูลแล้ว 🎉</p>
           )}
           {choices.map((m) => {
-            const isInstalling = installing === m.id
+            const isInstalling = progress?.id === m.id
             return (
               <div key={m.id} className="flex items-center gap-3 p-3 rounded-xl bg-zinc-950/60 border border-zinc-800">
                 <div className="text-2xl">{m.icon}</div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-white">{m.name}</span>
-                    <span className="text-[10px] text-zinc-500">{m.size}</span>
+                    {m.size ? <span className="text-[10px] text-zinc-500">{fmtMB(m.size)}</span> : null}
                   </div>
                   <p className="text-xs text-zinc-500 truncate">{m.description}</p>
-                  {isInstalling && (
-                    <div className="mt-2 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-violet-500 transition-all" style={{ width: `${progress}%` }} />
+                  {isInstalling && progress && (
+                    <div className="mt-2">
+                      <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-violet-500 transition-all" style={{ width: `${progress.percent}%` }} />
+                      </div>
+                      <div className="mt-1 text-[10px] text-zinc-500">
+                        {PHASE_LABEL[progress.phase]} {progress.phase === 'download' ? `${progress.percent}%` : ''}
+                        {progress.total ? ` · ${fmtMB(progress.got)}/${fmtMB(progress.total)}` : ''}
+                      </div>
                     </div>
                   )}
                 </div>
                 <button
-                  disabled={!m.available || !!installing}
-                  onClick={() => install(m)}
-                  className="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer enabled:bg-violet-600 enabled:hover:bg-violet-500 enabled:text-white disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed"
+                  disabled={!m.available || busy}
+                  onClick={() => onInstall(m)}
+                  className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer disabled:cursor-not-allowed enabled:bg-violet-600 enabled:hover:bg-violet-500 enabled:text-white disabled:bg-zinc-800 disabled:text-zinc-500"
                 >
                   {isInstalling ? (
-                    <span className="flex items-center gap-1">
-                      <Loader2 size={14} className="animate-spin" /> {progress}%
-                    </span>
+                    <>
+                      <Loader2 size={14} className="animate-spin" /> {progress?.percent ?? 0}%
+                    </>
                   ) : m.available ? (
-                    'ติดตั้ง'
+                    <>
+                      <Download size={14} /> ติดตั้ง
+                    </>
                   ) : (
                     'เร็ว ๆ นี้'
                   )}
