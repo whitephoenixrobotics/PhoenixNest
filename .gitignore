@@ -16,6 +16,10 @@ build/
 out/
 *.tsbuildinfo
 
+# Next.js
+.next/
+next-env.d.ts
+
 # Electron
 release/
 
