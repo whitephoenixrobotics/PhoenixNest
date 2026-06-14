@@ -22,7 +22,7 @@ class ArduinoServoHandler(BaseNodeHandler):
         angle = max(min_angle, min(max_angle, angle))
 
         try:
-            mgr.write_servo(pin, angle)
+            await mgr.awrite_servo(pin, angle)
         except Exception as e:
             return {"ok": False, "error": str(e), "pin": pin, "angle": angle}
 

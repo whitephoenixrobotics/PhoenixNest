@@ -43,7 +43,10 @@ class FlashBody(BaseModel):
 # ── REST ──────────────────────────────────────────────────────────────────────
 @router.get("/ports")
 async def get_ports(_user: User = Depends(get_current_user)):
-    ports = list_ports()
+    # comports() does Windows SetupAPI/registry enumeration — it can block for
+    # a second+ while the serial subsystem is busy (e.g. during an Auto-Run
+    # session hammering the board). Off-load it so it never stalls the loop.
+    ports = await asyncio.to_thread(list_ports)
     return {
         "ports": [
             {
@@ -60,8 +63,8 @@ async def get_ports(_user: User = Depends(get_current_user)):
 
 @router.get("/status")
 async def get_status(_user: User = Depends(get_current_user)):
-    s = get_manager().status()
-    bundle_ok, bundle_msg = check_bundle()
+    s = await asyncio.to_thread(get_manager().status)
+    bundle_ok, bundle_msg = await asyncio.to_thread(check_bundle)
     return {
         "connected": s.connected,
         "port": s.port,
@@ -77,7 +80,8 @@ async def get_status(_user: User = Depends(get_current_user)):
 async def connect(body: ConnectBody, _user: User = Depends(get_current_user)):
     mgr = get_manager()
     try:
-        # pyfirmata2.Arduino() blocks ~2-3 s during handshake — keep loop responsive.
+        # connect() builds the board on its worker thread; pyfirmata2.Arduino()
+        # blocks ~5 s for the board auto-reset. Off-load so the loop stays live.
         s = await asyncio.to_thread(mgr.connect, body.port)
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -138,17 +142,30 @@ async def ws_pin_reads(ws: WebSocket):
     async def _emit_loop() -> None:
         import time
         mgr = get_manager()
+        was_connected = False
         while True:
             if not mgr.is_connected or not subs:
+                # Surface a single terminal frame on a connected→disconnected
+                # edge (e.g. unplug) instead of looping forever emitting err:*.
+                if was_connected and not mgr.is_connected:
+                    was_connected = False
+                    try:
+                        await ws.send_json({"connected": False, "t": int(time.time() * 1000)})
+                    except Exception:
+                        return
                 await asyncio.sleep(0.1)
                 continue
+            was_connected = True
             values: dict[str, int | bool | None] = {}
             for pin, mode in subs:
                 try:
+                    # Awaited via the serial-worker bridge — the read happens on
+                    # the worker thread, NEVER on the event loop, so a stalled
+                    # board can't freeze ASGI dispatch.
                     if mode == "analog_in":
-                        values[f"a:{pin}"] = mgr.read_analog(pin)
+                        values[f"a:{pin}"] = await mgr.aread_analog(pin)
                     else:
-                        values[f"d:{pin}"] = mgr.read_digital(pin)
+                        values[f"d:{pin}"] = await mgr.aread_digital(pin)
                 except Exception as e:
                     values[f"err:{mode}:{pin}"] = str(e)  # type: ignore[assignment]
             try:

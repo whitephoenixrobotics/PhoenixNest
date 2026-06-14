@@ -8,6 +8,7 @@ import { NodePalette } from '@/components/canvas/NodePalette'
 import { CanvasTopBar } from '@/components/canvas/CanvasTopBar'
 import { NodeConfigPanel } from '@/components/panels/NodeConfigPanel'
 import { useFlowStore } from '@/stores/flowStore'
+import { useAutoRunStore } from '@/stores/autoRunStore'
 import { useExtensionsStore } from '@/stores/extensionsStore'
 import { useFlowExecution } from '@/hooks/useFlowExecution'
 import { flowsApi, projectsApi, apiErrorMessage } from '@/lib/api-client'
@@ -39,6 +40,16 @@ export default function FlowEditorPage() {
   }, [id, loadDefinition])
 
   useEffect(() => { loadFlow() }, [loadFlow])
+
+  // Tear AUTO down when leaving the editor route. Without this the 300ms tick
+  // (and its /ws/preview socket) outlives the page — a flow with hardware
+  // write nodes would keep driving the Arduino after navigate-away.
+  useEffect(() => {
+    return () => {
+      const auto = useAutoRunStore.getState()
+      if (auto.isAuto) auto.toggle()  // turns off → clears interval, closes socket
+    }
+  }, [])
 
   const handleSave = useCallback(async () => {
     if (!flow) return

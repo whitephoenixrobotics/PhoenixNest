@@ -48,9 +48,16 @@ function applyOutputs(outputs: Record<string, Record<string, unknown>>) {
 
 async function connect() {
   if (connecting || ws) return
+  // AUTO may have been switched off before we even started.
+  if (!useAutoRunStore.getState().isAuto) return
   connecting = true
   try {
     const token = await getAccessToken()
+    // Re-check AFTER the await: during the getAccessToken() window AUTO may
+    // have been turned off, or another caller may have already opened a socket.
+    // This is the load-bearing guard that prevents a SECOND /ws/preview socket
+    // (the double-socket that doubled the serial write rate and fed the freeze).
+    if (!useAutoRunStore.getState().isAuto || ws) return
     const base = runtimeWsUrl() || DEFAULT_WS_URL
     const socket = new WebSocket(`${base}/ws/preview?token=${encodeURIComponent(token ?? '')}`)
     ws = socket
@@ -93,8 +100,8 @@ function runPreview() {
   if (useNativeStore.getState().running) return
 
   if (!ws || ws.readyState !== WebSocket.OPEN) {
-    // Reconnect if the backend restarted while Auto is on
-    if (useAutoRunStore.getState().isAuto) void connect()
+    // Reconnect is owned SOLELY by the tick (see toggle()), so there is exactly
+    // one connect() path. Here we just bail — don't open a competing socket.
     return
   }
   if (inFlight) {
@@ -147,7 +154,17 @@ export const useAutoRunStore = create<AutoRunStore>((set, get) => ({
       // socket died (backend restart) — without this, flows with no
       // time-dependent block would stay dead until the next user edit.
       tickInterval = setInterval(() => {
-        if (hasTimeDependentNode() || !ws) runPreview()
+        // Single reconnect owner: if the socket died (backend restart), bring
+        // it back. Otherwise only re-run the graph when something is actually
+        // time-driven. A passive flow (e.g. Switch → Digital Write) no longer
+        // re-runs 3x/sec — it updates on switch toggles via the flow-store
+        // subscription, which removes the relentless write pressure that fed
+        // the Arduino freeze.
+        if (!ws) {
+          void connect()
+        } else if (hasTimeDependentNode()) {
+          runPreview()
+        }
       }, 300)
     }
   },

@@ -22,7 +22,7 @@ class ArduinoAnalogReadHandler(BaseNodeHandler):
             return {"ok": False, "error": "Arduino not connected", "pin": pin, "value": 0, "raw": 0}
 
         try:
-            raw = mgr.read_analog(pin)
+            raw = await mgr.aread_analog(pin)
         except Exception as e:
             return {"ok": False, "error": str(e), "pin": pin, "value": 0, "raw": 0}
 

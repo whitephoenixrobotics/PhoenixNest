@@ -22,7 +22,11 @@ class ArduinoDigitalWriteHandler(BaseNodeHandler):
             on = not on
 
         try:
-            mgr.write_digital(pin, on)
+            # Submitted to the single serial-worker thread and awaited via a
+            # Future bridge — never blocks the event loop, never touches the
+            # shared default ThreadPoolExecutor, and rapid Auto-Run ticks
+            # coalesce to the latest value (no backlog / drain-flicker).
+            await mgr.awrite_digital(pin, on)
         except Exception as e:
             return {"ok": False, "error": str(e), "pin": pin, "value": on}
 

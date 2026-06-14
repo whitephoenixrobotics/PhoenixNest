@@ -18,7 +18,7 @@ class ArduinoDigitalReadHandler(BaseNodeHandler):
             return {"ok": False, "error": "Arduino not connected", "pin": pin, "value": False, "result": False}
 
         try:
-            v = mgr.read_digital(pin)
+            v = await mgr.aread_digital(pin)
         except Exception as e:
             return {"ok": False, "error": str(e), "pin": pin, "value": False, "result": False}
 
