@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, LogOut, X, Loader2, ArrowLeft, ShieldCheck, Download, Trash2 } from 'lucide-react'
+import { Plus, LogOut, X, Loader2, ArrowLeft, ShieldCheck, Download, Trash2, Cpu, Zap, Check } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 import { signOut, type AuthUser } from '@/lib/auth'
 import {
@@ -26,6 +26,7 @@ export function HubView({ user }: { user: AuthUser | null }) {
   const [progress, setProgress] = useState<InstallProgress | null>(null)
   const [confirmDel, setConfirmDel] = useState<RegistryModule | null>(null)
   const [removing, setRemoving] = useState(false)
+  const [chooseEdition, setChooseEdition] = useState<RegistryModule | null>(null)
 
   const refreshInstalled = useCallback(async () => {
     if (!window.phoenixNest) return
@@ -63,13 +64,16 @@ export function HubView({ user }: { user: AuthUser | null }) {
     setActive(null)
   }
 
-  async function handleInstall(m: RegistryModule) {
+  async function handleInstall(m: RegistryModule, edition?: string) {
     setError(null)
     setProgress({ id: m.id, phase: 'download', percent: 0 })
-    const res = await window.phoenixNest!.installModule(m.id)
+    const res = await window.phoenixNest!.installModule(m.id, edition)
     setProgress(null)
-    if (res.ok) await refreshInstalled()
-    else setError(res.error || 'ติดตั้งไม่สำเร็จ')
+    if (res.ok) {
+      await refreshInstalled()
+      setChooseEdition(null)
+      setAdding(false)
+    } else setError(res.error || 'ติดตั้งไม่สำเร็จ')
   }
 
   async function doUninstall() {
@@ -194,7 +198,16 @@ export function HubView({ user }: { user: AuthUser | null }) {
           installed={installed}
           progress={progress}
           onClose={() => setAdding(false)}
-          onInstall={handleInstall}
+          onInstall={(m) => handleInstall(m)}
+          onChoose={(m) => setChooseEdition(m)}
+        />
+      )}
+      {chooseEdition && (
+        <EditionChooser
+          module={chooseEdition}
+          progress={progress}
+          onClose={() => setChooseEdition(null)}
+          onInstall={(ed) => handleInstall(chooseEdition, ed)}
         />
       )}
       {opening && <OpeningOverlay module={opening} />}
@@ -293,18 +306,147 @@ function fmtMB(b?: number) {
   return b ? `${(b / 1024 / 1024).toFixed(1)}MB` : ''
 }
 
+function fmtSize(b?: number) {
+  if (!b) return ''
+  const gb = b / 1024 ** 3
+  return gb >= 1 ? `${gb.toFixed(2)} GB` : `${Math.round(b / 1024 / 1024)} MB`
+}
+
+const EDITION_DEFS = [
+  {
+    key: 'cpu',
+    label: 'CPU only',
+    Icon: Cpu,
+    tagline: 'เหมาะกับโน้ตบุ๊ก/พีซีทั่วไปที่ไม่มีการ์ดจอ NVIDIA',
+    bullets: ['ใช้ได้กับทุกเครื่อง Windows 10/11', 'ไฟล์ติดตั้งเล็กกว่า', 'ฟีเจอร์ AI ครบทุกบล็อก', 'ความเร็วระดับมาตรฐาน'],
+    btn: 'ดาวน์โหลด CPU',
+  },
+  {
+    key: 'gpu',
+    label: 'CPU + CUDA',
+    Icon: Zap,
+    tagline: 'สำหรับเครื่องที่มีการ์ดจอ NVIDIA (รองรับ CUDA)',
+    bullets: ['เร่งด้วย GPU เร็วขึ้นหลายเท่า', 'เหมาะกับงานวิดีโอ/เรียลไทม์', 'ฟีเจอร์ AI ครบทุกบล็อก', 'มี CUDA runtime ในตัว ไม่ต้องลงเพิ่ม'],
+    btn: 'ดาวน์โหลด CPU + CUDA',
+  },
+] as const
+
+function EditionChooser({
+  module,
+  progress,
+  onClose,
+  onInstall,
+}: {
+  module: RegistryModule
+  progress: InstallProgress | null
+  onClose: () => void
+  onInstall: (edition: string) => void
+}) {
+  const [installingEd, setInstallingEd] = useState<string | null>(null)
+  const busy = !!installingEd
+
+  return (
+    <Overlay onClose={busy ? undefined : onClose}>
+      <div className="w-full max-w-3xl bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+          <div>
+            <h3 className="font-semibold text-white">ติดตั้ง {module.name}</h3>
+            <p className="text-xs text-zinc-500">เลือกเวอร์ชันให้เหมาะกับเครื่องของคุณ</p>
+          </div>
+          {!busy && (
+            <button onClick={onClose} className="text-zinc-500 hover:text-white cursor-pointer">
+              <X size={18} />
+            </button>
+          )}
+        </div>
+
+        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {EDITION_DEFS.map((def) => {
+            const ed = module.editions?.[def.key]
+            const available = !!ed
+            const recommended = module.edition === def.key
+            const isInstalling = installingEd === def.key
+            const highlight = recommended
+            return (
+              <div
+                key={def.key}
+                className={`relative rounded-2xl p-5 border flex flex-col ${
+                  highlight ? 'bg-violet-600/15 border-violet-500/50' : 'bg-zinc-950/50 border-zinc-800'
+                }`}
+              >
+                {recommended && (
+                  <span className="absolute top-3 right-3 text-[10px] px-2 py-0.5 rounded-full bg-violet-500/25 text-violet-200 border border-violet-400/30">
+                    แนะนำสำหรับเครื่องนี้
+                  </span>
+                )}
+                <div className="flex items-center gap-2 mb-1">
+                  <def.Icon size={22} className={highlight ? 'text-violet-300' : 'text-zinc-300'} />
+                  <span className="text-lg font-bold text-white">{def.label}</span>
+                </div>
+                <p className="text-xs text-zinc-400 mb-4 min-h-[32px]">{def.tagline}</p>
+                <ul className="flex flex-col gap-2 mb-5 flex-1">
+                  {def.bullets.map((b) => (
+                    <li key={b} className="flex items-start gap-2 text-sm text-zinc-300">
+                      <Check size={15} className={`mt-0.5 shrink-0 ${highlight ? 'text-violet-300' : 'text-emerald-400'}`} />
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  disabled={!available || busy}
+                  onClick={() => {
+                    setInstallingEd(def.key)
+                    onInstall(def.key)
+                  }}
+                  className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                    highlight
+                      ? 'bg-white text-zinc-900 enabled:hover:bg-zinc-100 disabled:bg-white/40'
+                      : 'bg-zinc-800 text-white enabled:hover:bg-zinc-700 disabled:bg-zinc-800/50 disabled:text-zinc-500'
+                  }`}
+                >
+                  {isInstalling ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" />
+                      {progress ? `${progress.percent}%` : '...'}
+                    </>
+                  ) : available ? (
+                    <>
+                      <Download size={15} /> {def.btn}
+                    </>
+                  ) : (
+                    'ยังไม่พร้อม'
+                  )}
+                </button>
+                <p className="text-center text-[11px] text-zinc-500 mt-2">
+                  {isInstalling && progress
+                    ? `${PHASE_LABEL[progress.phase]}${progress.parts && progress.parts > 1 ? ` · พาร์ท ${progress.part}/${progress.parts}` : ''}`
+                    : available
+                      ? `ดาวน์โหลดตอนติดตั้ง ~${fmtSize(ed?.size)}`
+                      : 'เร็ว ๆ นี้'}
+                </p>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </Overlay>
+  )
+}
+
 function AddModuleDialog({
   registry,
   installed,
   progress,
   onClose,
   onInstall,
+  onChoose,
 }: {
   registry: RegistryModule[]
   installed: InstalledMap
   progress: InstallProgress | null
   onClose: () => void
   onInstall: (m: RegistryModule) => void
+  onChoose: (m: RegistryModule) => void
 }) {
   const choices = registry.filter((m) => !installed[m.id])
   const busy = !!progress
@@ -350,7 +492,7 @@ function AddModuleDialog({
                 </div>
                 <button
                   disabled={!m.available || busy}
-                  onClick={() => onInstall(m)}
+                  onClick={() => (m.editions ? onChoose(m) : onInstall(m))}
                   className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer disabled:cursor-not-allowed enabled:bg-violet-600 enabled:hover:bg-violet-500 enabled:text-white disabled:bg-zinc-800 disabled:text-zinc-500"
                 >
                   {isInstalling ? (

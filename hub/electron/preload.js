@@ -23,7 +23,7 @@ contextBridge.exposeInMainWorld('phoenixNest', {
   // Module registry + install (PhoenixNest is the installer — no setup.exe).
   getRegistry: () => ipcRenderer.invoke('module:registry'),
   getInstalled: () => ipcRenderer.invoke('module:installed'),
-  installModule: (id) => ipcRenderer.invoke('module:install', id),
+  installModule: (id, edition) => ipcRenderer.invoke('module:install', id, edition),
   uninstallModule: (id) => ipcRenderer.invoke('module:uninstall', id),
   onInstallProgress: (cb) => {
     const handler = (_e, data) => cb(data)

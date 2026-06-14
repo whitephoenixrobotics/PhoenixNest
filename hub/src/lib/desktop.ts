@@ -56,7 +56,7 @@ export interface PhoenixNestBridge {
   closeModule: () => Promise<{ ok: boolean }>
   getRegistry: () => Promise<{ ok: boolean; error?: string; registry: { modules: RegistryModule[] } }>
   getInstalled: () => Promise<InstalledMap>
-  installModule: (id: string) => Promise<{ ok: boolean; error?: string }>
+  installModule: (id: string, edition?: string) => Promise<{ ok: boolean; error?: string }>
   uninstallModule: (id: string) => Promise<{ ok: boolean; error?: string }>
   onInstallProgress: (cb: (p: InstallProgress) => void) => () => void
 }

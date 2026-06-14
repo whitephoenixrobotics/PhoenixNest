@@ -181,10 +181,17 @@ function hasNvidiaGpu() {
 
 // Resolve a registry module entry into a concrete download spec, picking the
 // right edition (gpu/cpu) when the entry has `editions`.
-function resolveSpec(mod) {
+function resolveSpec(mod, forceEdition) {
   const base = { id: mod.id, name: mod.name, type: mod.type, runtimeEnv: mod.runtimeEnv || null }
   if (mod.editions) {
-    const want = hasNvidiaGpu() && mod.editions.gpu ? 'gpu' : mod.editions.cpu ? 'cpu' : Object.keys(mod.editions)[0]
+    const want =
+      forceEdition && mod.editions[forceEdition]
+        ? forceEdition
+        : hasNvidiaGpu() && mod.editions.gpu
+          ? 'gpu'
+          : mod.editions.cpu
+            ? 'cpu'
+            : Object.keys(mod.editions)[0]
     const ed = mod.editions[want]
     if (!ed) return null
     return { ...base, edition: want, version: ed.latest, url: ed.url, parts: ed.parts, sha256: ed.sha256 }
@@ -411,19 +418,21 @@ ipcMain.handle('module:registry', async () => {
 
 ipcMain.handle('module:installed', () => {
   const map = installer.readInstalled()
-  // Surface ai-flow as available in a dev checkout even without a real install.
-  if (!map['ai-flow'] && aiFlowDevAvailable()) {
+  // In a dev checkout (PHOENIXNEST_DEV=1), surface ai-flow as installed so it
+  // runs from the monorepo source. Otherwise it appears in "add module" and is
+  // installed as a real downloaded bundle.
+  if (process.env.PHOENIXNEST_DEV && !map['ai-flow'] && aiFlowDevAvailable()) {
     map['ai-flow'] = { version: 'dev', type: 'service', dev: true }
   }
   return map
 })
 
-ipcMain.handle('module:install', async (e, id) => {
+ipcMain.handle('module:install', async (e, id, edition) => {
   try {
     const reg = await installer.fetchRegistry()
     const mod = (reg.modules || []).find((m) => m.id === id)
     if (!mod) return { ok: false, error: `module not in registry: ${id}` }
-    const spec = resolveSpec(mod)
+    const spec = resolveSpec(mod, edition)
     if (!spec || (!spec.url && !spec.parts)) return { ok: false, error: `no download for module: ${id}` }
     const info = await installer.installModule(spec, (p) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
