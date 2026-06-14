@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { getUser, type AuthUser } from '@/lib/auth'
+import { getProfile, type AuthUser } from '@/lib/auth'
 import { HubView } from '@/components/HubView'
 
 // The hub is the post-login landing. Guard it: no session → /login.
@@ -19,7 +19,7 @@ export default function HubPage() {
         router.replace('/login')
         return
       }
-      setUser(await getUser())
+      setUser(await getProfile())
       setLoading(false)
     })
   }, [router])

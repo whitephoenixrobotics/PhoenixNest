@@ -27,11 +27,20 @@ export interface PhoenixBridge {
 declare global {
   interface Window {
     phoenix?: PhoenixBridge
+    // Set by the PhoenixNest hub when Flow is embedded inside it (separate from
+    // Flow's own desktop shell `window.phoenix`).
+    phoenixNest?: { embedded?: boolean }
   }
 }
 
 export function isDesktop(): boolean {
   return typeof window !== 'undefined' && !!window.phoenix?.isDesktop
+}
+
+/** True when Flow is embedded inside the PhoenixNest hub window. The hub owns
+ * account + user management, so Flow hides its own account/admin/logout UI. */
+export function isEmbeddedInHub(): boolean {
+  return typeof window !== 'undefined' && !!window.phoenixNest?.embedded
 }
 
 export function desktopVersion(): string | null {

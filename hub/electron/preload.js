@@ -11,6 +11,7 @@ try {
 
 contextBridge.exposeInMainWorld('phoenixNest', {
   isDesktop: true,
+  embedded: false, // this process is the hub shell itself, not an embedded module
   version,
   openExternal: (url) => ipcRenderer.send('phoenixnest:open-external', url),
 

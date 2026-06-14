@@ -9,7 +9,7 @@ import {
 import { Logo } from '@/components/Logo'
 import { projectsApi, flowsApi, trainApi, apiErrorMessage } from '@/lib/api-client'
 import { getProfile, signOut, type AuthUser } from '@/lib/auth'
-import { desktopVersion } from '@/lib/desktop'
+import { desktopVersion, isEmbeddedInHub } from '@/lib/desktop'
 import { uiPrompt, uiConfirm, uiAlert } from '@/lib/dialog'
 import type { Project } from '@/types'
 
@@ -33,10 +33,15 @@ export default function DashboardPage() {
   // Read the desktop version only after mount — reading window.phoenix during
   // render would mismatch SSR (server has no window) and break hydration.
   const [version, setVersion] = useState<string | null>(null)
+  // When embedded in the PhoenixNest hub, hide Flow's own account/admin/logout
+  // cluster — the hub owns those. Read after mount to keep SSR deterministic.
+  const [embedded, setEmbedded] = useState(false)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setVersion(desktopVersion())
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEmbedded(isEmbeddedInHub())
   }, [])
 
   const reload = () => {
@@ -185,35 +190,39 @@ export default function DashboardPage() {
           <h1 className="text-lg font-bold text-white">PhoenixFlow</h1>
           {version && <span className="text-[11px] text-zinc-600">v{version}</span>}
         </div>
-        <div className="flex items-center gap-2">
-          {me?.role === 'admin' && (
+        {/* Account / admin / logout — hidden when embedded in PhoenixNest,
+            which owns account + user management at the hub level. */}
+        {!embedded && (
+          <div className="flex items-center gap-2">
+            {me?.role === 'admin' && (
+              <button
+                onClick={() => router.push('/admin')}
+                className="flex items-center gap-1.5 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-violet-300 text-sm rounded-lg transition-colors"
+              >
+                <ShieldCheck size={14} /> จัดการผู้ใช้
+              </button>
+            )}
+            {me && (
+              <span className="hidden sm:flex items-center gap-2 px-2 text-sm text-zinc-400">
+                {me.picture ? (
+                  <img src={me.picture} alt="" referrerPolicy="no-referrer" className="w-7 h-7 rounded-full" />
+                ) : (
+                  <span className="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center text-xs">
+                    {me.name?.[0]?.toUpperCase()}
+                  </span>
+                )}
+                <span className="max-w-[140px] truncate">{me.name}</span>
+              </span>
+            )}
             <button
-              onClick={() => router.push('/admin')}
-              className="flex items-center gap-1.5 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-violet-300 text-sm rounded-lg transition-colors"
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 text-sm rounded-lg transition-colors"
+              title="ออกจากระบบ"
             >
-              <ShieldCheck size={14} /> จัดการผู้ใช้
+              <LogOut size={14} />
             </button>
-          )}
-          {me && (
-            <span className="hidden sm:flex items-center gap-2 px-2 text-sm text-zinc-400">
-              {me.picture ? (
-                <img src={me.picture} alt="" referrerPolicy="no-referrer" className="w-7 h-7 rounded-full" />
-              ) : (
-                <span className="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center text-xs">
-                  {me.name?.[0]?.toUpperCase()}
-                </span>
-              )}
-              <span className="max-w-[140px] truncate">{me.name}</span>
-            </span>
-          )}
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 text-sm rounded-lg transition-colors"
-            title="ออกจากระบบ"
-          >
-            <LogOut size={14} />
-          </button>
-        </div>
+          </div>
+        )}
       </header>
 
       {loading ? (

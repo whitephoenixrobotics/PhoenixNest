@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, LogOut, X, Loader2, ArrowLeft } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Plus, LogOut, X, Loader2, ArrowLeft, ShieldCheck } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 import { signOut, type AuthUser } from '@/lib/auth'
 import { CATALOG, type ModuleDef } from '@/lib/modules'
@@ -10,6 +11,7 @@ import { isDesktop, openModule, closeModule } from '@/lib/desktop'
 const STORE_KEY = 'phoenixnest.installed'
 
 export function HubView({ user }: { user: AuthUser | null }) {
+  const router = useRouter()
   const [installed, setInstalled] = useState<string[]>([])
   const [adding, setAdding] = useState(false)
   const [opening, setOpening] = useState<ModuleDef | null>(null)
@@ -83,6 +85,15 @@ export function HubView({ user }: { user: AuthUser | null }) {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {user?.role === 'admin' && (
+            <button
+              onClick={() => router.push('/admin')}
+              title="จัดการผู้ใช้"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-violet-300 text-sm transition-colors cursor-pointer"
+            >
+              <ShieldCheck size={15} /> จัดการผู้ใช้
+            </button>
+          )}
           {user && (
             <div className="text-right">
               <p className="text-sm text-zinc-200 leading-tight">{user.name}</p>
