@@ -45,6 +45,10 @@ logs/
 flow/apps/api/data/
 flow/apps/api/storage/
 
+# YOLO / model weights (auto-downloaded by ultralytics at runtime).
+# Per-module .gitignores cover these too; this catches strays at the repo root.
+*.pt
+
 # Temp electron extraction (manual binary install)
 hub/_eltest/
 
