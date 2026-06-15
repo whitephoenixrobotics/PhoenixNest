@@ -2,9 +2,13 @@ import os
 from pathlib import Path
 
 # Per-install data dir. Projects (each with its own files + venv) live under
-# data/projects/<slug>/. Kept inside apps/api for now; a packaged build would
-# point this at a per-user app-data path.
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+# data/projects/<slug>/. Defaults to apps/api/data in a dev checkout; the bundled
+# desktop build sets PHOENIXPY_DATA_DIR to a per-user app-data path so workspaces/
+# settings survive module updates (the bundle folder is replaced on update).
+DATA_DIR = Path(
+    os.environ.get("PHOENIXPY_DATA_DIR")
+    or (Path(__file__).resolve().parent.parent / "data")
+)
 PROJECTS_DIR = DATA_DIR / "projects"
 
 

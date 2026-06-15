@@ -258,23 +258,32 @@ async function openServiceBundle(installed) {
   killPort(bePort)
   killPort(fePort)
 
-  // Backend: self-contained PyInstaller exe (no venv needed).
-  const beExe = path.join(root, be.exe || 'backend/phoenix-api.exe')
-  if (!fs.existsSync(beExe)) return { ok: false, error: `backend not found: ${beExe}` }
-  const beProc = spawn(beExe, [], {
-    cwd: path.dirname(beExe),
-    // Runtime config for the backend (e.g. SUPABASE_URL so it can fetch JWKS to
-    // validate the handed-over Supabase token). Comes from the bundle's
+  const logId = m.id || 'module'
+  // Backend: either a self-contained exe (Flow's PyInstaller build) OR an
+  // interpreter + args (PhoenixPy runs `python -m uvicorn …` because it must
+  // execute the user's Python — venvs/kernels — which a frozen exe can't).
+  const beCmd = be.cmd
+    ? path.join(root, be.cmd)
+    : path.join(root, be.exe || 'backend/phoenix-api.exe')
+  if (!fs.existsSync(beCmd)) return { ok: false, error: `backend not found: ${beCmd}` }
+  const beArgs = (be.args || []).map((a) => String(a).replace('{PORT}', String(bePort)))
+  const beCwd = be.cwd ? path.join(root, be.cwd) : path.dirname(beCmd)
+  const beProc = spawn(beCmd, beArgs, {
+    cwd: beCwd,
+    // Runtime config for the backend (e.g. SUPABASE_URL). Comes from the bundle's
     // module.json (be.env) and/or the registry (installed.runtimeEnv) — the
     // latter lets us fix config without rebuilding/re-uploading the bundle.
     env: {
       ...process.env,
+      // `python -m uvicorn app.main:app` resolves app/ from cwd; set PYTHONPATH
+      // too so it works regardless of how the interpreter was invoked.
+      ...(be.cmd ? { PYTHONPATH: beCwd } : {}),
       ...(be.env || {}),
       ...(installed.runtimeEnv || {}),
       [be.portEnv || 'PHOENIX_API_PORT']: String(bePort),
     },
     windowsHide: true,
-    stdio: ['ignore', logFd('ai-flow-backend.log'), logFd('ai-flow-backend.log')],
+    stdio: ['ignore', logFd(`${logId}-backend.log`), logFd(`${logId}-backend.log`)],
   })
   beProc.on('error', (e) => console.error('[module] bundle backend error:', e.message))
   procs.push(beProc)
@@ -286,7 +295,7 @@ async function openServiceBundle(installed) {
     cwd: path.dirname(feEntry),
     env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', PORT: String(fePort), HOSTNAME: '127.0.0.1' },
     windowsHide: true,
-    stdio: ['ignore', logFd('ai-flow-frontend.log'), logFd('ai-flow-frontend.log')],
+    stdio: ['ignore', logFd(`${logId}-frontend.log`), logFd(`${logId}-frontend.log`)],
   })
   feProc.on('error', (e) => console.error('[module] bundle frontend error:', e.message))
   procs.push(feProc)
