@@ -61,6 +61,20 @@ pnpm dev
 - App: http://localhost:3200
 - API docs: http://127.0.0.1:8200/docs
 
+## Tests
+
+Backend test suite (pytest) — covers the kernel protocol, file-access safety,
+workspace path guards, atomic config persistence, and AI provider handling:
+
+```bat
+cd apps\api
+venv\Scripts\pip install -r requirements-dev.txt
+venv\Scripts\python -m pytest
+```
+
+Runs in ~1.5s (includes spawning a real kernel subprocess). Tests use temp-dir
+copies of `workspaces.json` / `ai.json`, so they never touch real user data.
+
 ## What it does
 
 - **Notebook** — persistent per-file kernel, inline plots/HTML, interactive
