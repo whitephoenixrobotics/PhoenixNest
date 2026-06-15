@@ -28,10 +28,14 @@ release/
 .env.local
 .env.*.local
 
-# Editors
+# Editors / tooling
 .vscode/
 .idea/
+.claude/
 *.swp
+
+# Scratch / experiments
+_sandbox/
 
 # OS
 .DS_Store
