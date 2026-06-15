@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import {
   Download,
@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import {
   aiHardware,
-  aiPull,
   aiSelectModel,
   aiDeleteModel,
   aiAddProvider,
@@ -26,6 +25,13 @@ import {
   type AiStatus,
   type AiHardware,
 } from "@/lib/api";
+import {
+  startInstall,
+  cancelInstall,
+  clearInstallError,
+  subscribeInstall,
+  getInstallState,
+} from "@/lib/aiInstall";
 import { useDialogs } from "@/components/Dialogs";
 
 // The three offered local editions — kept in sync with the backend MODEL_CATALOG.
@@ -113,16 +119,17 @@ export function AiSetup({
   onClose?: () => void;
 }) {
   const [hw, setHw] = useState<AiHardware | null>(null);
-  const [installing, setInstalling] = useState<string | null>(null);
-  const [progress, setProgress] = useState<{ pct: number | null; status: string }>(
-    { pct: null, status: "" },
-  );
+  // The pull lives in a module-level store (lib/aiInstall) so it survives this
+  // panel unmounting — switching views / closing the panel no longer cancels
+  // the download, and a remounted panel re-reads the live progress.
+  const inst = useSyncExternalStore(subscribeInstall, getInstallState, getInstallState);
+  const installing = inst.name;
+  const progress = { pct: inst.pct, status: inst.status };
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null); // switching ("ใช้")
   const [deleting, setDeleting] = useState<string | null>(null); // uninstalling
   const [custom, setCustom] = useState("");
   const [addApi, setAddApi] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
   const dialogs = useDialogs();
 
   useEffect(() => {
@@ -131,9 +138,14 @@ export function AiSetup({
     return () => ctrl.abort();
   }, []);
 
-  // Abort an in-flight model pull if this panel unmounts (e.g. user closes
-  // setup or navigates away) so the SSE stream doesn't dangle.
-  useEffect(() => () => abortRef.current?.abort(), []);
+  // When a pull finishes successfully (installing → idle, no error), refresh
+  // status so the new model shows as installed/active. Fires in whichever
+  // AiSetup is mounted at completion time, even if a different one started it.
+  const prevInstalling = useRef<string | null>(inst.name);
+  useEffect(() => {
+    if (prevInstalling.current && !inst.name && !inst.error) onChanged();
+    prevInstalling.current = inst.name;
+  }, [inst.name, inst.error, onChanged]);
 
   const online = status?.online;
   const installed = status?.installed ?? [];
@@ -158,23 +170,12 @@ export function AiSetup({
     !installedModels.includes(`${activeTag}:latest`) &&
     !MODELS.some((m) => m.id === activeTag);
 
-  const install = async (name: string) => {
+  // Fire-and-forget: the store drives progress + completion (see effect above),
+  // so this survives the panel unmounting mid-download.
+  const install = (name: string) => {
     setError(null);
-    setInstalling(name);
-    setProgress({ pct: null, status: "กำลังเริ่ม…" });
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    try {
-      await aiPull(name, (s, pct) => setProgress({ pct, status: s }), ctrl.signal);
-      await aiSelectModel(`ollama:${name}`);
-      onChanged();
-      onClose?.();
-    } catch (e) {
-      if ((e as Error)?.name !== "AbortError")
-        setError((e as Error).message || "ติดตั้งไม่สำเร็จ");
-    } finally {
-      setInstalling(null);
-    }
+    clearInstallError();
+    void startInstall(name);
   };
 
   const use = async (id: string) => {
@@ -259,9 +260,9 @@ export function AiSetup({
         )}
       </div>
 
-      {error && (
+      {(error || inst.error) && (
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
-          {error}
+          {error || inst.error}
         </div>
       )}
 
@@ -321,7 +322,15 @@ export function AiSetup({
               <p className="mt-1 text-[11px] text-zinc-500">{m.req}</p>
 
               {busy ? (
-                <ProgressBar progress={progress} />
+                <div>
+                  <ProgressBar progress={progress} />
+                  <button
+                    onClick={cancelInstall}
+                    className="mt-1.5 text-[11px] text-zinc-500 hover:text-red-300 cursor-pointer"
+                  >
+                    ยกเลิกการติดตั้ง
+                  </button>
+                </div>
               ) : isDeleting ? (
                 <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-400">
                   <Loader2 size={13} className="animate-spin" /> กำลังถอนการติดตั้ง…
