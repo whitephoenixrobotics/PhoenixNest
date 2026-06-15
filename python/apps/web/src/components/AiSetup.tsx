@@ -32,6 +32,7 @@ import {
   subscribeInstall,
   getInstallState,
 } from "@/lib/aiInstall";
+import { useOnline } from "@/lib/useOnline";
 import { useDialogs } from "@/components/Dialogs";
 
 // The three offered local editions — kept in sync with the backend MODEL_CATALOG.
@@ -119,6 +120,7 @@ export function AiSetup({
   onClose?: () => void;
 }) {
   const [hw, setHw] = useState<AiHardware | null>(null);
+  const hasNet = useOnline(); // real internet — gates model downloads
   // The pull lives in a module-level store (lib/aiInstall) so it survives this
   // panel unmounting — switching views / closing the panel no longer cancels
   // the download, and a remounted panel re-reads the live progress.
@@ -271,6 +273,13 @@ export function AiSetup({
         <Server size={13} /> โมเดลในเครื่อง (Ollama)
       </div>
 
+      {!hasNet && (
+        <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-xs text-sky-200">
+          ออฟไลน์อยู่ — <b>ดาวน์โหลดโมเดลใหม่ไม่ได้</b> ตอนนี้ ส่วนโมเดลที่ติดตั้งแล้ว
+          ใช้งานได้ตามปกติ (ไม่ต้องใช้เน็ต)
+        </div>
+      )}
+
       {!online && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
           ยังเปิด <b>Ollama</b> ไม่ได้ — ติดตั้ง/เปิดโปรแกรมก่อนถึงจะโหลดโมเดลในเครื่องได้
@@ -348,13 +357,15 @@ export function AiSetup({
                     </>
                   ) : (
                     <InstallBtn
-                      disabled={!online || !!installing}
+                      disabled={!online || !!installing || !hasNet}
                       title={
-                        !online
-                          ? "เปิด Ollama ก่อน"
-                          : installing
-                            ? "กำลังติดตั้งโมเดลอื่นอยู่ — รอสักครู่"
-                            : undefined
+                        !hasNet
+                          ? "ต้องต่ออินเทอร์เน็ตเพื่อดาวน์โหลดโมเดล"
+                          : !online
+                            ? "เปิด Ollama ก่อน"
+                            : installing
+                              ? "กำลังติดตั้งโมเดลอื่นอยู่ — รอสักครู่"
+                              : undefined
                       }
                       onClick={() => install(m.id)}
                     />
@@ -408,7 +419,7 @@ export function AiSetup({
         )}
 
         {/* custom pull */}
-        {online && !installing && (
+        {online && !installing && hasNet && (
           <div className="flex gap-1.5">
             <input
               value={custom}
@@ -643,6 +654,11 @@ function AddApiModal({
           >
             <X size={15} />
           </button>
+        </div>
+
+        <div className="mb-3 rounded-md border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-[11px] text-sky-200">
+          ผู้ช่วยผ่าน API ต้อง <b>ต่ออินเทอร์เน็ตทุกครั้งที่ใช้งาน</b> (ต่างจาก
+          โมเดลในเครื่องที่ใช้ออฟไลน์ได้)
         </div>
 
         {!choice ? (
