@@ -66,11 +66,17 @@ def _pick_folder_blocking() -> str | None:
 def _ensure_venv(root: Path) -> bool:
     if find_venv_python(root):
         return True
-    subprocess.run(
-        [sys.executable, "-m", "venv", str(root / ".venv")],
-        capture_output=True,
-        timeout=VENV_TIMEOUT,
-    )
+    # Best-effort: a failed/timed-out venv must not 500 open/create. Callers
+    # surface has_venv from find_venv_python(), so no venv just means the
+    # workspace falls back to the system interpreter.
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "venv", str(root / ".venv")],
+            capture_output=True,
+            timeout=VENV_TIMEOUT,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return False
     return find_venv_python(root) is not None
 
 
@@ -113,7 +119,9 @@ async def create_workspace(body: CreateBody) -> WorkspaceInfo:
     if not parent.is_dir():
         raise HTTPException(status_code=400, detail="ไม่พบโฟลเดอร์ปลายทาง")
     name = body.name.strip().strip("/\\")
-    if not name or name in (".", ".."):
+    # Single folder name only — reject separators / traversal so the new folder
+    # can't escape `parent` (e.g. name="../../x").
+    if not name or name in (".", "..") or "/" in name or "\\" in name:
         raise HTTPException(status_code=400, detail="ชื่อไม่ถูกต้อง")
     root = parent / name
     if root.exists():

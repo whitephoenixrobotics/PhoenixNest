@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { marked } from "marked";
 import {
   Loader2,
   Save,
@@ -32,6 +31,7 @@ import { CodeEditor } from "@/components/CodeEditor";
 import { explainPrompt } from "@/components/NotebookView";
 import { AiFixModal } from "@/components/AiFixModal";
 import { langForFilename } from "@/lib/lang";
+import { renderMarkdown } from "@/lib/markdown";
 
 const MD = /\.(md|markdown)$/i;
 const PY = /\.(py|pyw)$/i;
@@ -69,6 +69,16 @@ export function FileEditor({
     done: boolean;
   } | null>(null);
   const ctrlRef = useRef<InteractiveRun | null>(null);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // close the interactive run WebSocket + clear timers on unmount
+  useEffect(
+    () => () => {
+      ctrlRef.current?.close();
+      if (savedTimer.current) clearTimeout(savedTimer.current);
+    },
+    [],
+  );
   const [fixOpen, setFixOpen] = useState(false);
   // Scripts that read input() run interactively (live prompt + inline box).
   const needsInput = isPy && /\binput\s*\(/.test(content ?? "");
@@ -129,7 +139,8 @@ export function FileEditor({
       await saveFileContent(slug, path, content);
       setDirty(false);
       setSavedAt(true);
-      setTimeout(() => setSavedAt(false), 1500);
+      if (savedTimer.current) clearTimeout(savedTimer.current);
+      savedTimer.current = setTimeout(() => setSavedAt(false), 1500);
     } catch {
       setErr("บันทึกไม่สำเร็จ");
     } finally {
@@ -333,7 +344,7 @@ export function FileEditor({
           ) : isMd && preview ? (
             <div
               className="md px-6 py-4 max-w-3xl"
-              dangerouslySetInnerHTML={{ __html: marked.parse(content ?? "") as string }}
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(content ?? "") }}
             />
           ) : (
             content !== null && (

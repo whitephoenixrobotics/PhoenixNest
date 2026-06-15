@@ -63,6 +63,9 @@ class TerminalSession:
         self.attached: WebSocket | None = None
         self.lock = asyncio.Lock()
         self.alive = True
+        # capture the loop so kill() (callable from a threadpool thread) can
+        # cancel the reader task safely
+        self._loop = asyncio.get_running_loop()
         self.reader = asyncio.create_task(self._read_loop())
 
     async def _read_loop(self) -> None:
@@ -129,7 +132,14 @@ class TerminalSession:
             self.proc.terminate(force=True)
         except Exception:  # noqa: BLE001
             pass
-        self.reader.cancel()
+        # kill() may be called from a threadpool thread (sync routes) — cancel
+        # the reader task on its own loop, not from this thread.
+        task = self.reader
+        if task and not task.done():
+            try:
+                self._loop.call_soon_threadsafe(task.cancel)
+            except RuntimeError:
+                task.cancel()
 
 
 class TerminalManager:

@@ -21,19 +21,33 @@ def workspace_id(path: str) -> str:
 
 
 def _load() -> list[dict]:
-    if _FILE.exists():
-        try:
-            return json.loads(_FILE.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
-            return []
-    return []
+    if not _FILE.exists():
+        return []
+    try:
+        data = json.loads(_FILE.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 — corrupt/partial file → start empty
+        return []
+    if not isinstance(data, list):
+        return []
+    # Keep only well-formed records so callers can rely on w["id"]/w["path"].
+    return [
+        w
+        for w in data
+        if isinstance(w, dict)
+        and isinstance(w.get("id"), str)
+        and isinstance(w.get("path"), str)
+    ]
 
 
 def _save(items: list[dict]) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    _FILE.write_text(
+    # Atomic write: a crash mid-write must not leave a truncated registry that
+    # _load() would discard wholesale (losing every remembered workspace).
+    tmp = _FILE.with_suffix(".json.tmp")
+    tmp.write_text(
         json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    tmp.replace(_FILE)
 
 
 def recents() -> list[dict]:

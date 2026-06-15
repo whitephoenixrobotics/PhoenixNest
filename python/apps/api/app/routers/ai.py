@@ -62,7 +62,11 @@ def _load_config() -> dict:
 
 def _save_config() -> None:
     _CONFIG.parent.mkdir(parents=True, exist_ok=True)
-    _CONFIG.write_text(json.dumps(_config, ensure_ascii=False), encoding="utf-8")
+    # Atomic write so a crash mid-save can't truncate ai.json (which would drop
+    # every configured provider/API key on the next load).
+    tmp = _CONFIG.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(_config, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(_CONFIG)
 
 
 _config = _load_config()

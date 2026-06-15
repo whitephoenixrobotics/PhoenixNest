@@ -131,6 +131,10 @@ export function AiSetup({
     return () => ctrl.abort();
   }, []);
 
+  // Abort an in-flight model pull if this panel unmounts (e.g. user closes
+  // setup or navigates away) so the SSE stream doesn't dangle.
+  useEffect(() => () => abortRef.current?.abort(), []);
+
   const online = status?.online;
   const installed = status?.installed ?? [];
   const installedModels = status?.installed_models ?? [];

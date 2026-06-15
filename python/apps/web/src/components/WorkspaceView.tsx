@@ -60,15 +60,26 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
     setShowAi(true);
   }, []);
 
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
     const ctrl = new AbortController();
+    setErr(null);
     getWorkspace(workspaceId, ctrl.signal)
       .then(setWs)
       .catch((e) => {
-        if (e?.name !== "AbortError") setErr("ไม่พบ workspace นี้");
+        if (e?.name === "AbortError") return;
+        // A real 404 means the workspace is gone; anything else (connection
+        // refused while the backend is still starting, timeout) is a backend
+        // reachability problem the user can retry.
+        const msg = String(e?.message || "");
+        setErr(
+          msg.includes("404")
+            ? "ไม่พบ workspace นี้"
+            : "เชื่อมต่อกับ backend ไม่ได้ — ตรวจสอบว่าเซิร์ฟเวอร์ทำงานอยู่",
+        );
       });
     return () => ctrl.abort();
-  }, [workspaceId]);
+  }, [workspaceId, retry]);
 
   const openFile = useCallback((p: string) => {
     setTabs((t) => (t.includes(p) ? t : [...t, p]));
@@ -103,9 +114,15 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
 
   if (err)
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 text-zinc-500">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-zinc-500">
         <AlertTriangle size={32} className="text-amber-500" />
         <p>{err}</p>
+        <button
+          onClick={() => setRetry((r) => r + 1)}
+          className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm cursor-pointer"
+        >
+          ลองใหม่
+        </button>
       </div>
     );
 

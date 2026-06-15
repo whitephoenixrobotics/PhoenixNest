@@ -345,11 +345,17 @@ def _read_meta(proj: Path) -> dict:
 
 
 def _create_venv(proj: Path) -> None:
-    subprocess.run(
-        [sys.executable, "-m", "venv", str(proj / "venv")],
-        capture_output=True,
-        timeout=VENV_TIMEOUT,
-    )
+    # Best-effort: a failed/timed-out venv must not 500 the create call. The
+    # caller re-derives has_venv from find_venv_python() afterward, so a missing
+    # venv just means the project falls back to the system interpreter.
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "venv", str(proj / "venv")],
+            capture_output=True,
+            timeout=VENV_TIMEOUT,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        pass
 
 
 # ── endpoints ────────────────────────────────────────────────────────
@@ -682,18 +688,29 @@ async def install_package(slug: str, body: PackageBody) -> StreamingResponse:
         q: asyncio.Queue = asyncio.Queue()
 
         def reader():
-            for line in proc.stdout:  # type: ignore[union-attr]
-                loop.call_soon_threadsafe(q.put_nowait, line)
-            loop.call_soon_threadsafe(q.put_nowait, None)
+            try:
+                for line in proc.stdout:  # type: ignore[union-attr]
+                    loop.call_soon_threadsafe(q.put_nowait, line)
+            finally:
+                loop.call_soon_threadsafe(q.put_nowait, None)
 
         threading.Thread(target=reader, daemon=True).start()
-        while True:
-            line = await q.get()
-            if line is None:
-                break
-            yield f"data: {json.dumps({'line': line.rstrip()})}\n\n"
-        proc.wait()
-        yield f"data: {json.dumps({'done': proc.returncode})}\n\n"
+        try:
+            while True:
+                line = await q.get()
+                if line is None:
+                    break
+                yield f"data: {json.dumps({'line': line.rstrip()})}\n\n"
+            proc.wait()
+            yield f"data: {json.dumps({'done': proc.returncode})}\n\n"
+        finally:
+            # Client disconnected (GeneratorExit) or the stream ended — don't
+            # leave a detached pip running against the venv.
+            if proc.poll() is None:
+                try:
+                    proc.terminate()
+                except Exception:  # noqa: BLE001
+                    pass
 
     return StreamingResponse(gen(), media_type="text/event-stream")
 
@@ -739,6 +756,7 @@ async def upload_file(
     target = _safe_subdir(proj, path)
     # Strip any directory components from the client-supplied name.
     dest = target / Path(file.filename or "upload").name
+    _ensure_writable(proj, dest)
     dest.write_bytes(await file.read())
     return {"ok": True, "name": dest.name}
 
@@ -848,12 +866,28 @@ def get_file_content(slug: str, path: str = Query(...)) -> FileContent:
         return FileContent(editable=True, content=f.read_text("utf-8"))
     except UnicodeDecodeError:
         return FileContent(editable=False, reason="binary")
+    except OSError:
+        # locked / permission-denied / vanished mid-read → clean 400, not a 500
+        raise HTTPException(status_code=400, detail="เปิดไฟล์ไม่ได้")
+
+
+def _ensure_writable(proj: Path, target: Path) -> None:
+    """Refuse writes to app-managed files — anything inside .phoenix/ or the
+    protected metadata names — so the editor/upload can't corrupt project or
+    notebook metadata."""
+    try:
+        parts = target.resolve().relative_to(proj.resolve()).parts
+    except ValueError:
+        return  # outside the project — _safe_path already guards this
+    if target.name in _PROTECTED or PHOENIX in parts:
+        raise HTTPException(status_code=403, detail="แก้ไขไฟล์ระบบไม่ได้")
 
 
 @router.put("/{slug}/files/content")
 def save_file_content(slug: str, body: FileSave) -> dict:
     proj = _project_dir(slug)
     f = _safe_path(proj, body.path)
+    _ensure_writable(proj, f)
     if not f.parent.is_dir():
         raise HTTPException(status_code=400, detail="ไม่พบโฟลเดอร์ปลายทาง")
     f.write_text(body.content, encoding="utf-8")
@@ -864,6 +898,7 @@ def save_file_content(slug: str, body: FileSave) -> dict:
 def create_entry(slug: str, body: CreateBody) -> FileEntry:
     proj = _project_dir(slug)
     target = _safe_path(proj, body.path)
+    _ensure_writable(proj, target)
     if target == proj.resolve():
         raise HTTPException(status_code=400, detail="ชื่อไม่ถูกต้อง")
     if target.exists():
@@ -898,7 +933,7 @@ def rename_entry(slug: str, body: RenameBody) -> FileEntry:
     if src.name == "venv" and src.parent == proj.resolve():
         from app.routers.terminal import manager as terminals
 
-        kernels.shutdown(slug)
+        kernels.shutdown_workspace(slug)
         terminals.kill(slug)
     src.rename(dst)
     return FileEntry(
@@ -930,7 +965,7 @@ def move_entry(slug: str, body: MoveBody) -> FileEntry:
     if src.name == "venv" and src.parent == proj.resolve():
         from app.routers.terminal import manager as terminals
 
-        kernels.shutdown(slug)
+        kernels.shutdown_workspace(slug)
         terminals.kill(slug)
     src.rename(dst)
     return FileEntry(
@@ -966,7 +1001,7 @@ def delete_entry(slug: str, path: str = Query(...)) -> dict:
     if target.name == "venv" and target.parent == proj.resolve():
         from app.routers.terminal import manager as terminals
 
-        kernels.shutdown(slug)
+        kernels.shutdown_workspace(slug)
         terminals.kill(slug)
     if target.is_dir():
         shutil.rmtree(target)
@@ -981,7 +1016,7 @@ def delete_project(slug: str) -> dict:
 
     proj = _project_dir(slug)
     # Stop kernel + terminal first so their venv files aren't locked (Windows rmtree).
-    kernels.shutdown(slug)
+    kernels.shutdown_workspace(slug)
     terminals.kill(slug)
     shutil.rmtree(proj)
     return {"ok": True}

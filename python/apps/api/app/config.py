@@ -5,7 +5,6 @@ class Settings(BaseSettings):
     # App
     APP_NAME: str = "Phoenix Nest Python API"
     APP_VERSION: str = "0.1.0"
-    DEBUG: bool = True
 
     # CORS — allow any local loopback port. The frontend dev server runs on
     # 3200, but packaged builds may pick a different port, so allow all loopback.

@@ -44,7 +44,7 @@ app.include_router(ai_router)
 
 @app.get("/health")
 async def health() -> dict:
-    """Liveness probe — the frontend pings this to show backend status."""
+    """Liveness probe (used by the launcher to wait for the backend)."""
     return {"status": "ok", "version": settings.APP_VERSION}
 
 
@@ -56,23 +56,4 @@ async def info() -> dict:
         "version": settings.APP_VERSION,
         "python": sys.version.split()[0],
         "platform": platform.system(),
-    }
-
-
-@app.get("/api/system/stats")
-async def system_stats() -> dict:
-    """RAM + disk usage for the Colab-style resource gauge."""
-    import psutil
-
-    from app.paths import DATA_DIR
-
-    vm = psutil.virtual_memory()
-    disk = psutil.disk_usage(str(DATA_DIR.anchor or DATA_DIR))
-    return {
-        "ram_used": vm.used,
-        "ram_total": vm.total,
-        "ram_percent": vm.percent,
-        "disk_used": disk.used,
-        "disk_total": disk.total,
-        "disk_percent": disk.percent,
     }
