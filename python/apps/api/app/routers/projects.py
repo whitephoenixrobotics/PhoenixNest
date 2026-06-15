@@ -345,11 +345,17 @@ def _read_meta(proj: Path) -> dict:
 
 
 def _create_venv(proj: Path) -> None:
-    subprocess.run(
-        [sys.executable, "-m", "venv", str(proj / "venv")],
-        capture_output=True,
-        timeout=VENV_TIMEOUT,
-    )
+    # Best-effort: a failed/timed-out venv must not 500 the create call. The
+    # caller re-derives has_venv from find_venv_python() afterward, so a missing
+    # venv just means the project falls back to the system interpreter.
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "venv", str(proj / "venv")],
+            capture_output=True,
+            timeout=VENV_TIMEOUT,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        pass
 
 
 # ── endpoints ────────────────────────────────────────────────────────
@@ -682,18 +688,29 @@ async def install_package(slug: str, body: PackageBody) -> StreamingResponse:
         q: asyncio.Queue = asyncio.Queue()
 
         def reader():
-            for line in proc.stdout:  # type: ignore[union-attr]
-                loop.call_soon_threadsafe(q.put_nowait, line)
-            loop.call_soon_threadsafe(q.put_nowait, None)
+            try:
+                for line in proc.stdout:  # type: ignore[union-attr]
+                    loop.call_soon_threadsafe(q.put_nowait, line)
+            finally:
+                loop.call_soon_threadsafe(q.put_nowait, None)
 
         threading.Thread(target=reader, daemon=True).start()
-        while True:
-            line = await q.get()
-            if line is None:
-                break
-            yield f"data: {json.dumps({'line': line.rstrip()})}\n\n"
-        proc.wait()
-        yield f"data: {json.dumps({'done': proc.returncode})}\n\n"
+        try:
+            while True:
+                line = await q.get()
+                if line is None:
+                    break
+                yield f"data: {json.dumps({'line': line.rstrip()})}\n\n"
+            proc.wait()
+            yield f"data: {json.dumps({'done': proc.returncode})}\n\n"
+        finally:
+            # Client disconnected (GeneratorExit) or the stream ended — don't
+            # leave a detached pip running against the venv.
+            if proc.poll() is None:
+                try:
+                    proc.terminate()
+                except Exception:  # noqa: BLE001
+                    pass
 
     return StreamingResponse(gen(), media_type="text/event-stream")
 
@@ -849,6 +866,9 @@ def get_file_content(slug: str, path: str = Query(...)) -> FileContent:
         return FileContent(editable=True, content=f.read_text("utf-8"))
     except UnicodeDecodeError:
         return FileContent(editable=False, reason="binary")
+    except OSError:
+        # locked / permission-denied / vanished mid-read → clean 400, not a 500
+        raise HTTPException(status_code=400, detail="เปิดไฟล์ไม่ได้")
 
 
 def _ensure_writable(proj: Path, target: Path) -> None:
