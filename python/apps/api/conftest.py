@@ -30,6 +30,21 @@ def isolate_data(tmp_path, monkeypatch):
     yield
 
 
+@pytest.fixture(autouse=True)
+def _kill_kernels():
+    """Tests that exercise the kernel spawn real subprocesses on the shared
+    manager. Kill any that are left running so they don't leak across the suite."""
+    yield
+    from app.kernel import manager
+
+    for k in list(manager._kernels.values()):
+        try:
+            k.kill()
+        except Exception:  # noqa: BLE001
+            pass
+    manager._kernels.clear()
+
+
 @pytest.fixture
 def client():
     from fastapi.testclient import TestClient
@@ -37,3 +52,14 @@ def client():
     from app.main import app
 
     return TestClient(app)
+
+
+@pytest.fixture
+def project(tmp_path, client):
+    """A workspace registered against a temp folder → (client, workspace_id, root).
+    The project root is a subdir so the redirected workspaces.json / ai.json (which
+    live in tmp_path itself) never show up in file listings."""
+    root = tmp_path / "proj"
+    root.mkdir()
+    rec = workspaces.remember(str(root), "2026-01-01T00:00:00")
+    return client, rec["id"], root
