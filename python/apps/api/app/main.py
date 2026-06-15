@@ -1,5 +1,8 @@
+import asyncio
 import platform
+import socket
 import sys
+import time
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -57,3 +60,36 @@ async def info() -> dict:
         "python": sys.version.split()[0],
         "platform": platform.system(),
     }
+
+
+# Real internet reachability — distinct from /health (local) and the AI-status
+# `online` flag (a loopback check for the Ollama daemon). navigator.onLine in
+# the browser only knows if a network interface is up, not whether traffic can
+# actually leave the LAN, so the UI relies on this server-side probe to gate
+# download actions (model pull, pip, external APIs). Probed from the same host
+# that performs those downloads, with a short cache to stay cheap.
+_NET_CACHE: dict = {"ts": 0.0, "ok": True}
+_NET_TTL = 3.0  # short so the UI reflects a dropped connection within seconds
+_NET_HOSTS = (("1.1.1.1", 443), ("8.8.8.8", 443))  # IP:port → no DNS dependency
+
+
+def _internet_reachable() -> bool:
+    now = time.monotonic()
+    if now - _NET_CACHE["ts"] < _NET_TTL:
+        return _NET_CACHE["ok"]
+    ok = False
+    for host in _NET_HOSTS:
+        try:
+            with socket.create_connection(host, timeout=1.5):
+                ok = True
+                break
+        except OSError:
+            continue
+    _NET_CACHE.update(ts=now, ok=ok)
+    return ok
+
+
+@app.get("/api/net")
+async def net_status() -> dict:
+    """Best-effort: can this machine reach the internet right now?"""
+    return {"online": await asyncio.to_thread(_internet_reachable)}

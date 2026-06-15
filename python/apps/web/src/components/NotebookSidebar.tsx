@@ -44,6 +44,7 @@ import {
   type NotebookCell,
   type Package as Pkg,
 } from "@/lib/api";
+import { useOnline } from "@/lib/useOnline";
 import { useDialogs } from "@/components/Dialogs";
 
 type Panel = "toc" | "files" | "vars" | "packages" | null;
@@ -780,6 +781,7 @@ function VarsPanel({
 
 function PackagesPanel({ slug }: { slug: string }) {
   const dialogs = useDialogs();
+  const hasNet = useOnline(); // pip install needs PyPI
   const [pkgs, setPkgs] = useState<Pkg[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState("");
@@ -852,12 +854,13 @@ function PackagesPanel({ slug }: { slug: string }) {
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && install()}
             placeholder="ติดตั้ง เช่น requests"
-            disabled={installing}
-            className="flex-1 min-w-0 rounded-md bg-zinc-950 border border-zinc-800 px-2 py-1 text-xs outline-none focus:border-teal-500/60"
+            disabled={installing || !hasNet}
+            className="flex-1 min-w-0 rounded-md bg-zinc-950 border border-zinc-800 px-2 py-1 text-xs outline-none focus:border-teal-500/60 disabled:opacity-50"
           />
           <button
             onClick={install}
-            disabled={installing || !name.trim()}
+            disabled={installing || !name.trim() || !hasNet}
+            title={!hasNet ? "ต้องต่ออินเทอร์เน็ตเพื่อติดตั้งแพ็กเกจ (pip)" : undefined}
             className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-teal-600 hover:bg-teal-500 text-white cursor-pointer disabled:opacity-40"
           >
             {installing ? (
@@ -868,6 +871,11 @@ function PackagesPanel({ slug }: { slug: string }) {
             ติดตั้ง
           </button>
         </div>
+        {!hasNet && (
+          <div className="rounded-md border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[10px] text-sky-200">
+            ออฟไลน์ — ติดตั้งแพ็กเกจใหม่ (pip) ไม่ได้ · ที่ลงไว้แล้วใช้ได้ปกติ
+          </div>
+        )}
         {log.length > 0 && (
           <div className="rounded bg-zinc-950 border border-zinc-800/60 overflow-hidden">
             <div className="flex items-center justify-between px-2 py-0.5 border-b border-zinc-800/60">

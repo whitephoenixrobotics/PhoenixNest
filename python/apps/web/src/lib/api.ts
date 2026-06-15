@@ -25,6 +25,14 @@ export interface RunResult {
   timed_out: boolean;
 }
 
+// Real internet reachability, probed server-side (navigator.onLine only knows
+// if a network interface is up, not whether traffic can leave the LAN).
+export async function netStatus(signal?: AbortSignal): Promise<boolean> {
+  const res = await fetch(`${API_URL}/api/net`, { signal });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return (await res.json()).online === true;
+}
+
 // ── Notebook + kernel ────────────────────────────────────────────────
 export type CellKind = "code" | "markdown";
 
