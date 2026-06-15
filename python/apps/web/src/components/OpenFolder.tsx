@@ -1,14 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   FolderOpen,
   FolderInput,
   FolderPlus,
   Loader2,
-  X,
-  Clock,
+  Trash2,
+  ListX,
   CheckCircle2,
   AlertTriangle,
 } from "lucide-react";
@@ -18,6 +19,7 @@ import {
   openWorkspace,
   createWorkspace,
   closeWorkspace,
+  deleteProjectFiles,
   type Workspace,
 } from "@/lib/api";
 import { useDialogs } from "@/components/Dialogs";
@@ -29,6 +31,9 @@ export function OpenFolder() {
   const [path, setPath] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Project pending deletion → drives the confirm modal (null = closed).
+  const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const refresh = useCallback(() => {
     listWorkspaces()
@@ -86,9 +91,33 @@ export function OpenFolder() {
     }
   };
 
-  const remove = async (id: string) => {
-    await closeWorkspace(id);
-    refresh();
+  // Drop from the list only — files on disk are kept.
+  const removeFromList = async (w: Workspace) => {
+    setDeleting(true);
+    try {
+      await closeWorkspace(w.id);
+      setDeleteTarget(null);
+      refresh();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Permanently delete the folder + files from disk, then drop from the list.
+  const deleteForever = async (w: Workspace) => {
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteProjectFiles(w.id);
+      await closeWorkspace(w.id).catch(() => {}); // also forget the registry entry
+      setDeleteTarget(null);
+      refresh();
+    } catch (e) {
+      setError((e as Error).message || "ลบไฟล์ไม่สำเร็จ");
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -158,12 +187,14 @@ export function OpenFolder() {
 
         <div className="mt-10">
           <div className="flex items-center gap-1.5 text-xs text-zinc-500 mb-3">
-            <Clock size={13} /> เปิดล่าสุด
+            <FolderOpen size={13} /> โปรเจคของฉัน
           </div>
           {recents === null ? (
             <p className="text-sm text-zinc-600">กำลังโหลด…</p>
           ) : recents.length === 0 ? (
-            <p className="text-sm text-zinc-600">ยังไม่มี — เปิดโฟลเดอร์แรกด้านบน</p>
+            <p className="text-sm text-zinc-600">
+              ยังไม่มีโปรเจค — สร้างหรือนำเข้าโปรเจคแรกด้านบน
+            </p>
           ) : (
             <div className="flex flex-col gap-1.5">
               {recents.map((w) => (
@@ -189,11 +220,11 @@ export function OpenFolder() {
                     )}
                   </button>
                   <button
-                    onClick={() => remove(w.id)}
-                    title="เอาออกจากรายการ (ไม่ลบโฟลเดอร์)"
+                    onClick={() => setDeleteTarget(w)}
+                    title="ลบโปรเจค"
                     className="p-1 rounded text-zinc-600 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-red-600/15 cursor-pointer"
                   >
-                    <X size={14} />
+                    <Trash2 size={14} />
                   </button>
                 </div>
               ))}
@@ -201,6 +232,72 @@ export function OpenFolder() {
           )}
         </div>
       </div>
+
+      {deleteTarget &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+            onClick={() => !deleting && setDeleteTarget(null)}
+          >
+            <div
+              className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-base font-semibold text-white">
+                ลบโปรเจค “{deleteTarget.name}”?
+              </h3>
+              <p className="mt-1 text-[11px] text-zinc-500 font-mono break-all">
+                {deleteTarget.path}
+              </p>
+              <p className="mt-3 text-sm text-zinc-400">เลือกวิธีลบ:</p>
+
+              <div className="mt-3 flex flex-col gap-2">
+                <button
+                  onClick={() => removeFromList(deleteTarget)}
+                  disabled={deleting}
+                  className="flex items-start gap-2.5 text-left px-3 py-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-100 cursor-pointer disabled:opacity-50"
+                >
+                  <ListX size={16} className="mt-0.5 shrink-0 text-zinc-300" />
+                  <span>
+                    <span className="block text-sm font-medium">เอาออกจากรายการ</span>
+                    <span className="block text-[11px] text-zinc-400">
+                      ไฟล์บนดิสก์ยังอยู่ครบ — แค่ซ่อนจากรายการนี้
+                    </span>
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => deleteForever(deleteTarget)}
+                  disabled={deleting}
+                  className="flex items-start gap-2.5 text-left px-3 py-2.5 rounded-lg bg-red-600/15 border border-red-500/30 hover:bg-red-600/25 text-red-200 cursor-pointer disabled:opacity-50"
+                >
+                  {deleting ? (
+                    <Loader2 size={16} className="mt-0.5 shrink-0 animate-spin" />
+                  ) : (
+                    <Trash2 size={16} className="mt-0.5 shrink-0" />
+                  )}
+                  <span>
+                    <span className="block text-sm font-medium">ลบไฟล์ถาวร</span>
+                    <span className="block text-[11px] text-red-300/80">
+                      ลบโฟลเดอร์ + ไฟล์ทั้งหมดออกจากดิสก์ — กู้คืนไม่ได้
+                    </span>
+                  </span>
+                </button>
+              </div>
+
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => setDeleteTarget(null)}
+                  disabled={deleting}
+                  className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium cursor-pointer disabled:opacity-50"
+                >
+                  ยกเลิก
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </main>
   );
 }

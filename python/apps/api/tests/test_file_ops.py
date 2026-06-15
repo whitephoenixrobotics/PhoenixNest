@@ -113,3 +113,13 @@ def test_rename_protected_name_forbidden(project):
         json={"path": "notebook.json", "new_name": "x.json"},
     )
     assert r.status_code == 403
+
+
+def test_delete_project_removes_folder_from_disk(project):
+    # Backs the home page's "ลบไฟล์ถาวร" choice — must actually rmtree the folder.
+    client, wid, root = project
+    (root / "a.py").write_text("x = 1", encoding="utf-8")
+    assert root.exists()
+    r = client.delete(f"/api/projects/{wid}")
+    assert r.status_code == 200
+    assert not root.exists()

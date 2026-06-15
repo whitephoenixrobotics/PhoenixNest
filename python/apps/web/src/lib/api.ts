@@ -268,8 +268,19 @@ export async function getWorkspace(
   return res.json();
 }
 
+// Forget a workspace — drops it from the list only, the folder on disk is kept.
 export async function closeWorkspace(id: string): Promise<void> {
   await fetch(`${API_URL}/api/workspaces/${id}`, { method: "DELETE" });
+}
+
+// Permanently delete the project's folder + files from disk (rmtree). The
+// backend stops the kernel/terminal first so the venv isn't locked. Irreversible.
+export async function deleteProjectFiles(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/projects/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const d = await res.json().catch(() => null);
+    throw new Error(d?.detail || `API ${res.status}`);
+  }
 }
 
 export async function listFiles(
