@@ -262,6 +262,13 @@ export function runCellInteractive(
   ws.onerror = () => {
     if (!done) handlers.onError("เชื่อมต่อ kernel ไม่ได้");
   };
+  ws.onclose = () => {
+    // socket closed before a result → kernel died / disconnected; don't spin
+    if (!done) {
+      done = true;
+      handlers.onError("การเชื่อมต่อ kernel ถูกปิด (อาจหยุดทำงาน) — ลองรันใหม่");
+    }
+  };
   return {
     sendInput: (value) => {
       if (ws.readyState === WebSocket.OPEN)
@@ -508,6 +515,12 @@ export function runFileInteractive(
   };
   ws.onerror = () => {
     if (!done) handlers.onError("เชื่อมต่อ backend ไม่ได้");
+  };
+  ws.onclose = () => {
+    if (!done) {
+      done = true;
+      handlers.onError("การเชื่อมต่อถูกปิด — ลองรันใหม่");
+    }
   };
   return {
     sendInput: (value) => {

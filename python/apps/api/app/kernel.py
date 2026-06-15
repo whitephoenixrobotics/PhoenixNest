@@ -307,5 +307,18 @@ class KernelManager:
     def shutdown(self, slug: str) -> None:
         self.restart(slug)
 
+    def shutdown_workspace(self, slug: str) -> None:
+        """Kill every kernel belonging to a workspace. Kernels are keyed
+        ``slug:<notebook-path>`` (or bare ``slug``), so a plain shutdown(slug)
+        would miss the per-notebook kernels — which hold the venv open and block
+        deleting the project on Windows."""
+        prefix = f"{slug}:"
+        with self._lock:
+            keys = [k for k in self._kernels if k == slug or k.startswith(prefix)]
+            killed = [self._kernels.pop(k, None) for k in keys]
+        for k in killed:
+            if k:
+                k.kill()
+
 
 manager = KernelManager()

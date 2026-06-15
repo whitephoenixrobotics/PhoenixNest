@@ -739,6 +739,7 @@ async def upload_file(
     target = _safe_subdir(proj, path)
     # Strip any directory components from the client-supplied name.
     dest = target / Path(file.filename or "upload").name
+    _ensure_writable(proj, dest)
     dest.write_bytes(await file.read())
     return {"ok": True, "name": dest.name}
 
@@ -850,10 +851,23 @@ def get_file_content(slug: str, path: str = Query(...)) -> FileContent:
         return FileContent(editable=False, reason="binary")
 
 
+def _ensure_writable(proj: Path, target: Path) -> None:
+    """Refuse writes to app-managed files — anything inside .phoenix/ or the
+    protected metadata names — so the editor/upload can't corrupt project or
+    notebook metadata."""
+    try:
+        parts = target.resolve().relative_to(proj.resolve()).parts
+    except ValueError:
+        return  # outside the project — _safe_path already guards this
+    if target.name in _PROTECTED or PHOENIX in parts:
+        raise HTTPException(status_code=403, detail="แก้ไขไฟล์ระบบไม่ได้")
+
+
 @router.put("/{slug}/files/content")
 def save_file_content(slug: str, body: FileSave) -> dict:
     proj = _project_dir(slug)
     f = _safe_path(proj, body.path)
+    _ensure_writable(proj, f)
     if not f.parent.is_dir():
         raise HTTPException(status_code=400, detail="ไม่พบโฟลเดอร์ปลายทาง")
     f.write_text(body.content, encoding="utf-8")
@@ -864,6 +878,7 @@ def save_file_content(slug: str, body: FileSave) -> dict:
 def create_entry(slug: str, body: CreateBody) -> FileEntry:
     proj = _project_dir(slug)
     target = _safe_path(proj, body.path)
+    _ensure_writable(proj, target)
     if target == proj.resolve():
         raise HTTPException(status_code=400, detail="ชื่อไม่ถูกต้อง")
     if target.exists():
@@ -898,7 +913,7 @@ def rename_entry(slug: str, body: RenameBody) -> FileEntry:
     if src.name == "venv" and src.parent == proj.resolve():
         from app.routers.terminal import manager as terminals
 
-        kernels.shutdown(slug)
+        kernels.shutdown_workspace(slug)
         terminals.kill(slug)
     src.rename(dst)
     return FileEntry(
@@ -930,7 +945,7 @@ def move_entry(slug: str, body: MoveBody) -> FileEntry:
     if src.name == "venv" and src.parent == proj.resolve():
         from app.routers.terminal import manager as terminals
 
-        kernels.shutdown(slug)
+        kernels.shutdown_workspace(slug)
         terminals.kill(slug)
     src.rename(dst)
     return FileEntry(
@@ -966,7 +981,7 @@ def delete_entry(slug: str, path: str = Query(...)) -> dict:
     if target.name == "venv" and target.parent == proj.resolve():
         from app.routers.terminal import manager as terminals
 
-        kernels.shutdown(slug)
+        kernels.shutdown_workspace(slug)
         terminals.kill(slug)
     if target.is_dir():
         shutil.rmtree(target)
@@ -981,7 +996,7 @@ def delete_project(slug: str) -> dict:
 
     proj = _project_dir(slug)
     # Stop kernel + terminal first so their venv files aren't locked (Windows rmtree).
-    kernels.shutdown(slug)
+    kernels.shutdown_workspace(slug)
     terminals.kill(slug)
     shutil.rmtree(proj)
     return {"ok": True}

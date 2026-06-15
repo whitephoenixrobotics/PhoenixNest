@@ -122,6 +122,15 @@ export function NotebookView({
   const cellRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const interactiveRef = useRef<Map<string, InteractiveRun>>(new Map());
 
+  // close any open interactive WebSocket(s) when the notebook unmounts
+  useEffect(() => {
+    const ctrls = interactiveRef.current;
+    return () => {
+      ctrls.forEach((c) => c.close());
+      ctrls.clear();
+    };
+  }, []);
+
   useEffect(() => {
     const ctrl = new AbortController();
     getNotebook(workspaceId, path, ctrl.signal)

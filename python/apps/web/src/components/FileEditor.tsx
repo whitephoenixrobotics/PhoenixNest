@@ -69,6 +69,16 @@ export function FileEditor({
     done: boolean;
   } | null>(null);
   const ctrlRef = useRef<InteractiveRun | null>(null);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // close the interactive run WebSocket + clear timers on unmount
+  useEffect(
+    () => () => {
+      ctrlRef.current?.close();
+      if (savedTimer.current) clearTimeout(savedTimer.current);
+    },
+    [],
+  );
   const [fixOpen, setFixOpen] = useState(false);
   // Scripts that read input() run interactively (live prompt + inline box).
   const needsInput = isPy && /\binput\s*\(/.test(content ?? "");
@@ -129,7 +139,8 @@ export function FileEditor({
       await saveFileContent(slug, path, content);
       setDirty(false);
       setSavedAt(true);
-      setTimeout(() => setSavedAt(false), 1500);
+      if (savedTimer.current) clearTimeout(savedTimer.current);
+      savedTimer.current = setTimeout(() => setSavedAt(false), 1500);
     } catch {
       setErr("บันทึกไม่สำเร็จ");
     } finally {
