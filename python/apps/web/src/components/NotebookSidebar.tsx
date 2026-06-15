@@ -51,7 +51,6 @@ type Panel = "toc" | "files" | "vars" | "packages" | null;
 export function NotebookSidebar({
   slug,
   cells,
-  varsKey,
   notebookPath,
   onJump,
   onRunHeading,
@@ -64,7 +63,6 @@ export function NotebookSidebar({
 }: {
   slug: string;
   cells?: NotebookCell[];
-  varsKey?: number;
   notebookPath?: string;
   onJump?: (id: string) => void;
   onRunHeading?: (id: string, level: number) => void;
@@ -132,7 +130,7 @@ export function NotebookSidebar({
             />
           )}
           {panel === "vars" && hasNotebook && (
-            <VarsPanel slug={slug} varsKey={varsKey!} path={notebookPath} />
+            <VarsPanel slug={slug} path={notebookPath} />
           )}
         </div>
       )}
@@ -739,11 +737,9 @@ function TocPanel({
 
 function VarsPanel({
   slug,
-  varsKey,
   path,
 }: {
   slug: string;
-  varsKey: number;
   path?: string;
 }) {
   const [vars, setVars] = useState<Variable[] | null>(null);
@@ -755,7 +751,7 @@ function VarsPanel({
       .catch(() => setVars([]))
       .finally(() => setBusy(false));
   };
-  useEffect(load, [slug, varsKey, path]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(load, [slug, path]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div>
       <PanelHeader title="ตัวแปร" onRefresh={load} busy={busy} />

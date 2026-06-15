@@ -59,7 +59,6 @@ interface CellState {
   running: boolean;
   output: ExecResult | null;
   editing: boolean;
-  stdin: string; // pre-supplied input() text (runtime only, not persisted)
   live?: LiveState | null; // interactive session (runtime only)
 }
 
@@ -146,7 +145,6 @@ export function NotebookView({
           running: false,
           output: null,
           editing: c.kind === "markdown" ? !c.source.trim() : false,
-          stdin: "",
         }));
         setCells(seeded);
         setSelectedId(seeded[0]?.id ?? null);
@@ -226,7 +224,6 @@ export function NotebookView({
             running: false,
             output: null,
             editing: false,
-            stdin: "",
           },
         ];
         persist(next);
@@ -252,7 +249,6 @@ export function NotebookView({
     running: false,
     output: null,
     editing: kind === "markdown",
-    stdin: "",
   });
 
   const addCell = (kind: CellKind, afterId?: string, above = false) => {
@@ -535,7 +531,6 @@ export function NotebookView({
       running: false,
       output: null,
       editing: false,
-      stdin: "",
     };
     setSelectedId(cell.id);
     setMode("command");
@@ -1373,7 +1368,6 @@ function CellView({
   );
 }
 
-// eslint-disable-next-line @next/next/no-img-element
 function CellRichOutput({ out }: { out: CellOutput }) {
   if (out.kind === "image") {
     return (

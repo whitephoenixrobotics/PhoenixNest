@@ -17,103 +17,12 @@ function resolveApiUrl(): string {
 
 export const API_URL = resolveApiUrl();
 
-export interface ApiInfo {
-  name: string;
-  version: string;
-  python: string;
-  platform: string;
-}
-
-export async function fetchInfo(signal?: AbortSignal): Promise<ApiInfo> {
-  const res = await fetch(`${API_URL}/api/info`, { signal });
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  return res.json();
-}
-
 export interface RunResult {
   stdout: string;
   stderr: string;
   exit_code: number | null;
   duration_ms: number;
   timed_out: boolean;
-}
-
-export async function runScript(
-  code: string,
-  signal?: AbortSignal,
-): Promise<RunResult> {
-  const res = await fetch(`${API_URL}/api/run`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code }),
-    signal,
-  });
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  return res.json();
-}
-
-// ── Projects ─────────────────────────────────────────────────────────
-export interface Project {
-  slug: string;
-  name: string;
-  description: string;
-  created_at: string;
-  python_version: string;
-  has_venv: boolean;
-}
-
-export interface ProjectDetail extends Project {
-  main: string;
-}
-
-export async function listProjects(signal?: AbortSignal): Promise<Project[]> {
-  const res = await fetch(`${API_URL}/api/projects`, { signal });
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  return res.json();
-}
-
-export async function createProject(
-  name: string,
-  description: string,
-): Promise<Project> {
-  const res = await fetch(`${API_URL}/api/projects`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, description }),
-  });
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  return res.json();
-}
-
-export async function getProject(
-  slug: string,
-  signal?: AbortSignal,
-): Promise<ProjectDetail> {
-  const res = await fetch(`${API_URL}/api/projects/${slug}`, { signal });
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  return res.json();
-}
-
-export async function runProject(
-  slug: string,
-  code: string,
-  signal?: AbortSignal,
-): Promise<RunResult> {
-  const res = await fetch(`${API_URL}/api/projects/${slug}/run`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code }),
-    signal,
-  });
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  return res.json();
-}
-
-export async function deleteProject(slug: string): Promise<void> {
-  const res = await fetch(`${API_URL}/api/projects/${slug}`, {
-    method: "DELETE",
-  });
-  if (!res.ok) throw new Error(`API ${res.status}`);
 }
 
 // ── Notebook + kernel ────────────────────────────────────────────────
@@ -155,15 +64,6 @@ export interface FileEntry {
   size: number;
 }
 
-export interface SystemStats {
-  ram_used: number;
-  ram_total: number;
-  ram_percent: number;
-  disk_used: number;
-  disk_total: number;
-  disk_percent: number;
-}
-
 // `path` is the relative .ipynb within the workspace (per-file notebook).
 export async function getNotebook(
   slug: string,
@@ -198,7 +98,6 @@ export async function executeCell(
   code: string,
   path = "",
   signal?: AbortSignal,
-  stdin = "",
 ): Promise<ExecResult> {
   const qs = new URLSearchParams({ path });
   const res = await fetch(
@@ -206,7 +105,7 @@ export async function executeCell(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, stdin }),
+      body: JSON.stringify({ code }),
       signal,
     },
   );
@@ -681,14 +580,6 @@ export async function completeCell(
   return res.json();
 }
 
-export async function getSystemStats(
-  signal?: AbortSignal,
-): Promise<SystemStats> {
-  const res = await fetch(`${API_URL}/api/system/stats`, { signal });
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  return res.json();
-}
-
 // ── Packages (pip in the project venv) ───────────────────────────────
 export interface Package {
   name: string;
@@ -762,7 +653,7 @@ export async function installPackage(
   return code;
 }
 
-// ── AI assistant (Ollama / DeepSeek) ─────────────────────────────────
+// ── AI assistant (Ollama / Claude / Gemini / OpenAI) ─────────────────
 export interface AiProvider {
   id: string;
   kind: "openai" | "anthropic" | "gemini";
@@ -773,7 +664,7 @@ export interface AiProvider {
 export interface AiStatus {
   online: boolean; // is Ollama running
   active: string; // active assistant id (ollama:<tag> | api:<id>)
-  kind: "ollama" | "openai" | "anthropic";
+  kind: "ollama" | "openai" | "anthropic" | "gemini";
   label: string | null;
   model: string | null;
   model_ready: boolean;

@@ -10,10 +10,6 @@ from pathlib import Path
 _RUNNER = str(Path(__file__).resolve().parent / "kernel_runner.py")
 
 
-class ExecResult(dict):
-    pass
-
-
 class Kernel:
     """A single long-lived kernel subprocess. Executions are serialized."""
 
