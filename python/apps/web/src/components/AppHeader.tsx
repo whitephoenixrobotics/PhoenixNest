@@ -5,7 +5,7 @@ import { Logo } from "@/components/Logo";
 const VERSION = "0.1.0";
 
 export function AppHeader({
-  subtitle = "Python Projects",
+  subtitle = "Local Python IDE",
   back,
 }: {
   subtitle?: string;
@@ -26,9 +26,7 @@ export function AppHeader({
           <Logo size={28} />
         )}
         <div className="leading-tight">
-          <h1 className="text-sm font-semibold leading-tight">
-            Phoenix Nest · Python
-          </h1>
+          <h1 className="text-sm font-semibold leading-tight">PhoenixPy</h1>
           <p className="text-[11px] text-zinc-500 leading-tight">{subtitle}</p>
         </div>
       </div>

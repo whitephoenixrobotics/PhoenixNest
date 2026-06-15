@@ -1,10 +1,10 @@
 @echo off
 chcp 65001 >nul
-title Phoenix Nest - Python - Launcher
+title PhoenixPy - Launcher
 cd /d "%~dp0"
 
 echo ============================================
-echo    PHOENIX NEST - PYTHON - Starting services
+echo    PhoenixPy - Starting services
 echo ============================================
 echo.
 
@@ -15,10 +15,10 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr :3200 ^| findstr LISTENING') 
 if not exist "%~dp0apps\api\venv\Scripts\python.exe" goto :novenv
 
 echo [2/3] Starting backend (FastAPI)...
-start "Phoenix Nest Python - Backend" cmd /k "cd /d %~dp0apps\api && set PYTHONPATH=%~dp0apps\api && venv\Scripts\python.exe -m uvicorn app.main:app --reload --reload-dir app --host 127.0.0.1 --port 8200"
+start "PhoenixPy - Backend" cmd /k "cd /d %~dp0apps\api && set PYTHONPATH=%~dp0apps\api && venv\Scripts\python.exe -m uvicorn app.main:app --reload --reload-dir app --host 127.0.0.1 --port 8200"
 
 echo [3/3] Starting frontend (Next.js)...
-start "Phoenix Nest Python - Frontend" cmd /k "cd /d %~dp0apps\web && pnpm dev"
+start "PhoenixPy - Frontend" cmd /k "cd /d %~dp0apps\web && pnpm dev"
 
 echo.
 echo  Waiting for servers to warm up...

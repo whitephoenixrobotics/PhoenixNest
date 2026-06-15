@@ -33,14 +33,18 @@
     },
     {
       "id": "python",
-      "name": "Python",
+      "name": "PhoenixPy",
       "path": "python",
       "icon": "🐍",
-      "description": "Shared Python packages and utilities used across the ecosystem",
-      "stack": ["python"],
-      "status": "reserved",
-      "launch": null,
-      "url": null,
+      "description": "Local Python IDE — notebook, editor, terminal, and AI assistant (FastAPI + Next.js)",
+      "stack": ["python", "fastapi", "nextjs"],
+      "status": "active",
+      "launch": {
+        "command": "start.bat",
+        "cwd": "python",
+        "shell": true
+      },
+      "url": "http://localhost:3200",
       "dependsOn": []
     }
   ]
