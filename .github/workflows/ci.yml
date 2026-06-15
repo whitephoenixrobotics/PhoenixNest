@@ -1,0 +1,51 @@
+name: python CI
+
+# Runs the python module's tests on every push / PR that touches it. The suite
+# runs on a clean machine, so it also catches "works on my machine" gaps such as
+# a dependency that's installed locally but missing from requirements.txt.
+on:
+  push:
+    paths:
+      - "python/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "python/**"
+      - ".github/workflows/ci.yml"
+
+jobs:
+  backend:
+    name: backend (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python/apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            python/apps/api/requirements.txt
+            python/apps/api/requirements-dev.txt
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: pytest
+
+  frontend:
+    name: frontend (tsc + vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python/apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: python/apps/web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm test
