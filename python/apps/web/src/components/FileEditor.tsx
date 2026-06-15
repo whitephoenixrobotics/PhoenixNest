@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { marked } from "marked";
 import {
   Loader2,
   Save,
@@ -32,6 +31,7 @@ import { CodeEditor } from "@/components/CodeEditor";
 import { explainPrompt } from "@/components/NotebookView";
 import { AiFixModal } from "@/components/AiFixModal";
 import { langForFilename } from "@/lib/lang";
+import { renderMarkdown } from "@/lib/markdown";
 
 const MD = /\.(md|markdown)$/i;
 const PY = /\.(py|pyw)$/i;
@@ -344,7 +344,7 @@ export function FileEditor({
           ) : isMd && preview ? (
             <div
               className="md px-6 py-4 max-w-3xl"
-              dangerouslySetInnerHTML={{ __html: marked.parse(content ?? "") as string }}
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(content ?? "") }}
             />
           ) : (
             content !== null && (

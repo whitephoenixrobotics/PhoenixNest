@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { marked } from "marked";
 import {
   Play,
   Loader2,
@@ -42,6 +41,7 @@ import {
 } from "@/lib/api";
 import { CodeEditor } from "@/components/CodeEditor";
 import { AiFixModal } from "@/components/AiFixModal";
+import { renderMarkdown } from "@/lib/markdown";
 
 // Live interactive run state (cells that call input()): the running transcript
 // plus the current pending prompt (null = not waiting for input).
@@ -604,6 +604,13 @@ export function NotebookView({
   useEffect(() => {
     setMatchIdx(0);
   }, [findText, findCase]);
+
+  // A replace shrinks `matches`; keep the cursor in range so the counter never
+  // shows "3/2" and replaceCurrent/gotoMatch never read past the end.
+  useEffect(() => {
+    if (matchIdx >= matches.length && matches.length > 0)
+      setMatchIdx(matches.length - 1);
+  }, [matches.length, matchIdx]);
 
   const gotoMatch = (dir: 1 | -1) => {
     if (!matches.length) return;
@@ -1206,7 +1213,7 @@ function CellView({
               onDoubleClick={onEdit}
               className="md px-2 py-1 cursor-text min-h-[2rem]"
               dangerouslySetInnerHTML={{
-                __html: marked.parse(cell.source || "*(ดับเบิลคลิกเพื่อแก้ไข)*") as string,
+                __html: renderMarkdown(cell.source || "*(ดับเบิลคลิกเพื่อแก้ไข)*"),
               }}
             />
           ) : isMd ? (

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { marked } from "marked";
 import { Sparkles, X, Send, Loader2, Square, Trash2, Copy, Check, CornerDownLeft, SlidersHorizontal } from "lucide-react";
 import { aiStatus, aiChat, type AiMessage, type AiStatus } from "@/lib/api";
+import { renderMarkdown } from "@/lib/markdown";
 import { AiSetup } from "@/components/AiSetup";
 
 interface Msg extends AiMessage {
@@ -109,6 +109,9 @@ export function AiPanel({
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
+
+  // Abort any in-flight chat stream if the panel unmounts mid-response.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const send = async (text: string) => {
     const content = text.trim();
@@ -249,7 +252,7 @@ export function AiPanel({
                     <div
                       key={j}
                       className="md"
-                      dangerouslySetInnerHTML={{ __html: marked.parse(s.text) as string }}
+                      dangerouslySetInnerHTML={{ __html: renderMarkdown(s.text) }}
                     />
                   ),
                 )}
