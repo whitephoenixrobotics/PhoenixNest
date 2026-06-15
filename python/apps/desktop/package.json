@@ -1,0 +1,14 @@
+{
+  "name": "phoenixpy-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PhoenixPy Desktop (Electron shell)",
+  "author": "Phoenix Nest",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.2.0"
+  }
+}
