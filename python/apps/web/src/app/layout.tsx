@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Phoenix Nest — Python",
-  description: "Shared Python packages and utilities for the Phoenix Nest ecosystem",
+  title: "PhoenixPy",
+  description: "PhoenixPy — a local Python IDE for the Phoenix Nest ecosystem",
 };
 
 export default function RootLayout({

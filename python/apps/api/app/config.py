@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # App
-    APP_NAME: str = "Phoenix Nest Python API"
+    APP_NAME: str = "PhoenixPy API"
     APP_VERSION: str = "0.1.0"
 
     # CORS — allow any local loopback port. The frontend dev server runs on

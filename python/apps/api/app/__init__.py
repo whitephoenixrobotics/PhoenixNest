@@ -1,3 +1,3 @@
-"""Phoenix Nest — Python module backend (FastAPI)."""
+"""PhoenixPy — local Python IDE backend (FastAPI)."""
 
 __version__ = "0.1.0"

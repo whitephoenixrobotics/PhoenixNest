@@ -53,7 +53,7 @@ async def health() -> dict:
 
 @app.get("/api/info")
 async def info() -> dict:
-    """Basic runtime info about the Python backend."""
+    """Basic runtime info about the PhoenixPy backend."""
     return {
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
