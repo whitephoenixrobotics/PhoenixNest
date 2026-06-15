@@ -43,7 +43,7 @@ class ArduinoAnalogWriteHandler(BaseNodeHandler):
             display = int(round(normalised * 255))
 
         try:
-            mgr.write_pwm(pin, normalised)
+            await mgr.awrite_pwm(pin, normalised)
         except Exception as e:
             return {"ok": False, "error": str(e), "pin": pin, "value": display}
 

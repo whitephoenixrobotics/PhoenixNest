@@ -1,0 +1,22 @@
+# virtual env
+venv/
+.venv/
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# per-install data (projects + their venvs)
+data/
+
+# env
+.env
+
+# run logs
+.apilog
+.reloadlog
+*.log
+
+# misc
+.DS_Store

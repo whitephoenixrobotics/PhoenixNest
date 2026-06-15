@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0a0a0b;
+  --foreground: #ededed;
+  --accent: #2dd4bf; /* teal-400 — python module's identity colour */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Rendered markdown (text cells) */
+.md {
+  line-height: 1.6;
+  color: #d4d4d8;
+}
+.md h1 { font-size: 1.6rem; font-weight: 700; margin: 0.4em 0 0.3em; }
+.md h2 { font-size: 1.3rem; font-weight: 700; margin: 0.4em 0 0.3em; }
+.md h3 { font-size: 1.1rem; font-weight: 600; margin: 0.4em 0 0.3em; }
+.md p { margin: 0.5em 0; }
+.md ul, .md ol { margin: 0.5em 0; padding-left: 1.5em; }
+.md ul { list-style: disc; }
+.md ol { list-style: decimal; }
+.md a { color: #2dd4bf; text-decoration: underline; }
+.md code {
+  background: #27272a;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.9em;
+}
+.md pre {
+  background: #18181b;
+  padding: 0.75em 1em;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+.md pre code { background: none; padding: 0; }
+.md blockquote {
+  border-left: 3px solid #3f3f46;
+  padding-left: 1em;
+  color: #a1a1aa;
+  margin: 0.5em 0;
+}
+.md strong { font-weight: 700; color: #fafafa; }
+
+/* Rich cell output: pandas DataFrames / HTML tables in the dark theme */
+.cell-html table {
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  color: #d4d4d8;
+}
+.cell-html th,
+.cell-html td {
+  border: 1px solid #27272a;
+  padding: 0.25rem 0.6rem;
+  text-align: right;
+  white-space: nowrap;
+}
+.cell-html thead th,
+.cell-html tr th:first-child {
+  background: #18181b;
+  color: #e4e4e7;
+  font-weight: 600;
+}
+.cell-html tr:nth-child(even) td {
+  background: rgba(39, 39, 42, 0.3);
+}
+.cell-html a {
+  color: #2dd4bf;
+}
+
+/* CodeMirror: let cells size to content, no inner scrollbar */
+.cm-editor { background: transparent !important; }
+.cm-editor .cm-scroller { font-family: var(--font-mono), monospace; }
+.cm-editor.cm-focused { outline: none !important; }
+.cm-gutters { background: transparent !important; border: none !important; }
