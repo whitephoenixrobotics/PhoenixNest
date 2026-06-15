@@ -20,6 +20,9 @@ export function TerminalPanel({
   const termRef = useRef<any>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const [reconnectKey, setReconnectKey] = useState(0);
+  // True when the socket dropped unexpectedly (backend reload, network) rather
+  // than via an intentional close/Kill — surfaces a reconnect button.
+  const [lost, setLost] = useState(false);
 
   // Drag-resizable height (persisted). The handle sits on the panel's top edge.
   const [height, setHeight] = useState(() => {
@@ -59,6 +62,7 @@ export function TerminalPanel({
   useEffect(() => {
     let disposed = false;
     let cleanup: (() => void) | undefined;
+    setLost(false);
 
     (async () => {
       const [{ Terminal }, { FitAddon }] = await Promise.all([
@@ -102,7 +106,10 @@ export function TerminalPanel({
         term.focus();
       };
       ws.onmessage = (e) => term.write(e.data as string);
-      ws.onclose = () => term.write("\r\n\x1b[90m[terminal ปิดแล้ว]\x1b[0m\r\n");
+      ws.onclose = () => {
+        term.write("\r\n\x1b[90m[terminal ปิดแล้ว]\x1b[0m\r\n");
+        if (!disposed) setLost(true); // unexpected drop → offer reconnect
+      };
 
       term.onData((d: string) => {
         if (ws.readyState === WebSocket.OPEN)
@@ -162,6 +169,15 @@ export function TerminalPanel({
           <TerminalSquare size={13} /> เทอร์มินัล · {slug} (venv)
         </span>
         <div className="flex items-center gap-0.5">
+          {lost && (
+            <button
+              onClick={() => setReconnectKey((k) => k + 1)}
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs text-teal-300 hover:bg-teal-600/20 cursor-pointer"
+              title="เชื่อมต่อเทอร์มินัลใหม่"
+            >
+              <Power size={13} /> เชื่อมต่อใหม่
+            </button>
+          )}
           <button
             onClick={handleClear}
             className="flex items-center gap-1 px-2 py-1 rounded text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 cursor-pointer"
