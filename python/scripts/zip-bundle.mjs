@@ -27,14 +27,17 @@ function* walk(dir) {
   }
 }
 
+// Default: compress (smaller download for the release). `--store` = no
+// compression (fast, for the local install test served over localhost).
+const STORE = process.argv.includes("--store");
 const zip = new yazl.ZipFile();
 let n = 0;
 for (const file of walk(SRC)) {
   const entry = relative(SRC, file).split("\\").join("/"); // zip uses forward slashes
-  zip.addFile(file, entry, { compress: false }); // store → fast
+  zip.addFile(file, entry, { compress: !STORE });
   n++;
 }
-console.log(`[zip-bundle] adding ${n} files (store mode)…`);
+console.log(`[zip-bundle] adding ${n} files (${STORE ? "store" : "compress"} mode)…`);
 
 zip.outputStream
   .pipe(createWriteStream(OUT))
