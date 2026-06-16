@@ -199,10 +199,20 @@ class IfElseHandler(BaseNodeHandler):
         if result:
             custom_text = str(branches[active_index].get("output_text", "")).strip()
 
+        # Surface the scalar/text the conditions actually evaluated, so the node
+        # can show the live incoming value next to the branch that lit up.
+        input_value = data.get("value")
+        if input_value is None:
+            input_value = data.get("count")
+        if input_value is None:
+            input_value = data.get("score")
+
         out: dict = {
             "result": result,
             "active_index": active_index,
             "value": data,
+            "input_value": input_value,
+            "input_text": data.get("text"),
             "text": custom_text if (result and custom_text)
                     else (f"Branch {active_index}" if result else "ไม่ตรงเงื่อนไข"),
             "custom_text": bool(custom_text),
