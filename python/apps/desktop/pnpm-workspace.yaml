@@ -1,5 +1,0 @@
-# pnpm 10+ blocks dependency build scripts by default. Electron's postinstall
-# downloads its binary, so it must be allowed here — otherwise `pnpm install`
-# leaves node_modules/electron without an electron.exe and `pnpm start` fails.
-allowBuilds:
-  electron: true
