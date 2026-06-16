@@ -249,7 +249,7 @@ export function JsonExtractNode({ id, data, selected }: Props) {
         {/* Template */}
         <div>
           <div className="text-[10px] text-zinc-500 mb-0.5">
-            template <span className="text-zinc-600">(ว่าง = ส่ง value1)</span>
+            template <span className="text-zinc-600">(ว่าง = ไม่ส่งข้อความ)</span>
           </div>
           <TextArea
             value={template}

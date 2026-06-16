@@ -234,7 +234,10 @@ class JsonExtractHandler(BaseNodeHandler):
                 return _fmt(_walk(source, expr))  # {some.other.path}
             text = re.sub(r'\{([^}]+)\}', repl, template)
         else:
-            text = _fmt(primary)
+            # No template → emit no combined text. (Downstream blocks that want
+            # one value should use a template like "{value1}". If/Else reads the
+            # per-path `values` directly, so it isn't affected.)
+            text = ''
 
         _n = _to_number(primary)
         num_value = _n if _n is not None else 0.0
