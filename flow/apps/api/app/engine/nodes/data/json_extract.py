@@ -135,6 +135,26 @@ def _build_tree(data, depth: int = 0, budget: list | None = None) -> dict:
     return {'kind': 'leaf', 'preview': _preview(data)}
 
 
+def _to_number(value):
+    """Coerce ints, floats, and *numeric strings* ('16', '8.3') to float.
+
+    Many public APIs (e.g. air4thai) return numbers as JSON strings. Without
+    this the numeric `value` output would be 0, so a downstream If/Else or
+    Compare on a threshold (PM > 80) would never fire even though the displayed
+    text is correct. Returns None when the value isn't numeric.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            return None
+    return None
+
+
 def _fmt(value) -> str:
     if value is None:
         return ''
@@ -216,7 +236,8 @@ class JsonExtractHandler(BaseNodeHandler):
         else:
             text = _fmt(primary)
 
-        num_value = float(primary) if isinstance(primary, (int, float)) and not isinstance(primary, bool) else 0.0
+        _n = _to_number(primary)
+        num_value = _n if _n is not None else 0.0
 
         return {
             'value': num_value,
