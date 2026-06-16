@@ -15,7 +15,20 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/api", tags=["tools"])
 
-_RUFF = Path(sys.executable).parent / ("ruff.exe" if os.name == "nt" else "ruff")
+def _find_ruff() -> Path:
+    """Locate the ruff binary next to the running interpreter. A venv puts it in
+    the same dir as python (Scripts/ or bin/); a standalone Python (bundled
+    desktop build) puts python at the root and scripts under Scripts/bin — so
+    check both."""
+    base = Path(sys.executable).parent
+    name = "ruff.exe" if os.name == "nt" else "ruff"
+    for cand in (base / name, base / "Scripts" / name, base / "bin" / name):
+        if cand.exists():
+            return cand
+    return base / name  # default path; callers guard on .exists()
+
+
+_RUFF = _find_ruff()
 
 # Codes treated as errors (red); everything else is a warning (yellow).
 _ERROR_CODES = {"E999", "F821", "F822", "F823", "F811", "F706", "F707"}
