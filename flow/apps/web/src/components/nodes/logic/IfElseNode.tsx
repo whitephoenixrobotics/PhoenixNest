@@ -52,7 +52,7 @@ function defaultBranches(config: Record<string, unknown>): Branch[] {
 export function IfElseNode({ id, data, selected }: Props) {
   const status = useExecutionStore((s) => s.getNodeStatus(id))
   const output = useExecutionStore((s) => s.nodeStates[id]?.output) as
-    | { result?: boolean; active_index?: number }
+    | { result?: boolean; active_index?: number; input_value?: number | string | null; input_text?: string }
     | undefined
   const updateNodeConfig = useFlowStore((s) => s.updateNodeConfig)
   const selectNode = useFlowStore((s) => s.selectNode)
@@ -107,6 +107,20 @@ export function IfElseNode({ id, data, selected }: Props) {
       <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700/50" style={{ height: HEADER_HEIGHT }}>
         <span className="text-lg">🔀</span>
         <span className="text-sm font-semibold text-zinc-100 flex-1">{data.label}</span>
+        {/* Live incoming value the conditions are evaluating */}
+        {(() => {
+          const iv = output?.input_value
+          const show = iv !== undefined && iv !== null && iv !== ''
+            ? String(iv)
+            : (output?.input_text ? `"${output.input_text}"` : null)
+          if (!show) return null
+          const s = show.length > 14 ? show.slice(0, 13) + '…' : show
+          return (
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-cyan-300 border border-zinc-700/60 flex-shrink-0" title={`ค่าที่รับเข้า: ${show}`}>
+              เข้า: {s}
+            </span>
+          )
+        })()}
         {output?.result !== undefined && (
           <span className={cn(
             'w-2 h-2 rounded-full',
