@@ -169,6 +169,17 @@ function waitForHttp(url, timeoutMs) {
   })
 }
 
+// Compare dotted versions: 1 if a>b, -1 if a<b, 0 if equal.
+function cmpVer(a, b) {
+  const pa = String(a || '0').split('.').map((n) => parseInt(n, 10) || 0)
+  const pb = String(b || '0').split('.').map((n) => parseInt(n, 10) || 0)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0)
+    if (d) return d > 0 ? 1 : -1
+  }
+  return 0
+}
+
 // Is an NVIDIA GPU present? (decides cpu vs gpu module edition)
 function hasNvidiaGpu() {
   try {
@@ -425,6 +436,33 @@ ipcMain.handle('module:registry', async () => {
   }
 })
 
+// Detect available updates across installed modules + the hub itself.
+ipcMain.handle('module:updates', async () => {
+  try {
+    const reg = await installer.fetchRegistry()
+    const installed = installer.readInstalled()
+    const updates = []
+    for (const [id, info] of Object.entries(installed)) {
+      if (info.dev) continue // dev source-run has no version to update
+      const mod = (reg.modules || []).find((m) => m.id === id)
+      if (!mod) continue
+      const spec = resolveSpec(mod, info.edition)
+      const latest = spec && spec.version
+      if (latest && cmpVer(latest, info.version) > 0) {
+        updates.push({ id, name: mod.name, icon: mod.icon, kind: 'module', edition: info.edition || null, installed: info.version, latest })
+      }
+    }
+    const hubLatest = reg.hub && reg.hub.latest
+    const hubCur = app.getVersion()
+    if (hubLatest && cmpVer(hubLatest, hubCur) > 0) {
+      updates.push({ id: 'hub', name: 'PhoenixNest', icon: '🦅', kind: 'hub', installed: hubCur, latest: hubLatest })
+    }
+    return { ok: true, updates }
+  } catch (e) {
+    return { ok: false, error: String(e.message || e), updates: [] }
+  }
+})
+
 ipcMain.handle('module:installed', () => {
   const map = installer.readInstalled()
   // In a dev checkout (PHOENIXNEST_DEV=1), surface ai-flow as installed so it
@@ -436,6 +474,8 @@ ipcMain.handle('module:installed', () => {
   return map
 })
 
+let activeInstall = null // AbortController of the in-flight install (for cancel)
+
 ipcMain.handle('module:install', async (e, id, edition) => {
   try {
     const reg = await installer.fetchRegistry()
@@ -443,15 +483,32 @@ ipcMain.handle('module:install', async (e, id, edition) => {
     if (!mod) return { ok: false, error: `module not in registry: ${id}` }
     const spec = resolveSpec(mod, edition)
     if (!spec || (!spec.url && !spec.parts)) return { ok: false, error: `no download for module: ${id}` }
-    const info = await installer.installModule(spec, (p) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('module:install-progress', { id, ...p })
-      }
-    })
-    return { ok: true, info }
+    const ac = new AbortController()
+    activeInstall = ac
+    try {
+      const info = await installer.installModule(
+        spec,
+        (p) => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('module:install-progress', { id, ...p })
+          }
+        },
+        ac.signal,
+      )
+      return { ok: true, info }
+    } finally {
+      if (activeInstall === ac) activeInstall = null
+    }
   } catch (err) {
-    return { ok: false, error: String(err.message || err) }
+    const msg = String(err.message || err)
+    if (msg.includes('cancelled')) return { ok: false, cancelled: true }
+    return { ok: false, error: msg }
   }
+})
+
+ipcMain.handle('module:cancel-install', () => {
+  if (activeInstall) activeInstall.abort()
+  return { ok: true }
 })
 
 ipcMain.handle('module:uninstall', (_e, id) => {

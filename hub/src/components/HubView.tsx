@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, LogOut, X, Loader2, ArrowLeft, ShieldCheck, Download, Trash2, Cpu, Zap, Check } from 'lucide-react'
+import {
+  Plus, LogOut, X, Loader2, ArrowLeft, ShieldCheck, Download, Trash2, Cpu, Zap, Check, RefreshCw, Bell, Square,
+} from 'lucide-react'
 import { Logo } from '@/components/Logo'
 import { signOut, type AuthUser } from '@/lib/auth'
 import {
@@ -12,6 +14,7 @@ import {
   type RegistryModule,
   type InstalledMap,
   type InstallProgress,
+  type UpdateItem,
 } from '@/lib/desktop'
 
 export function HubView({ user }: { user: AuthUser | null }) {
@@ -27,11 +30,21 @@ export function HubView({ user }: { user: AuthUser | null }) {
   const [confirmDel, setConfirmDel] = useState<RegistryModule | null>(null)
   const [removing, setRemoving] = useState(false)
   const [chooseEdition, setChooseEdition] = useState<RegistryModule | null>(null)
+  const [updates, setUpdates] = useState<UpdateItem[]>([])
+  const [showUpdates, setShowUpdates] = useState(false)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+
+  const refreshUpdates = useCallback(async () => {
+    if (!window.phoenixNest) return
+    const r = await window.phoenixNest.getUpdates()
+    if (r.ok) setUpdates(r.updates)
+  }, [])
 
   const refreshInstalled = useCallback(async () => {
     if (!window.phoenixNest) return
     setInstalled(await window.phoenixNest.getInstalled())
-  }, [])
+    refreshUpdates()
+  }, [refreshUpdates])
 
   useEffect(() => {
     if (!isDesktop() || !window.phoenixNest) {
@@ -47,8 +60,21 @@ export function HubView({ user }: { user: AuthUser | null }) {
         setInstalled(inst)
       })
       .finally(() => setLoading(false))
+    refreshUpdates()
     return unsub
-  }, [])
+  }, [refreshUpdates])
+
+  async function handleUpdate(u: UpdateItem) {
+    if (u.kind !== 'module') return // hub self-update wired in a later step
+    setError(null)
+    setUpdatingId(u.id)
+    setProgress({ id: u.id, phase: 'download', percent: 0 })
+    const res = await window.phoenixNest!.installModule(u.id, u.edition || undefined)
+    setProgress(null)
+    setUpdatingId(null)
+    if (res.ok) await refreshInstalled()
+    else if (!res.cancelled) setError(res.error || 'อัพเดทไม่สำเร็จ')
+  }
 
   async function handleOpen(m: RegistryModule) {
     setError(null)
@@ -73,7 +99,11 @@ export function HubView({ user }: { user: AuthUser | null }) {
       await refreshInstalled()
       setChooseEdition(null)
       setAdding(false)
-    } else setError(res.error || 'ติดตั้งไม่สำเร็จ')
+    } else if (!res.cancelled) setError(res.error || 'ติดตั้งไม่สำเร็จ')
+  }
+
+  function handleCancelInstall() {
+    window.phoenixNest?.cancelInstall?.()
   }
 
   async function doUninstall() {
@@ -113,6 +143,22 @@ export function HubView({ user }: { user: AuthUser | null }) {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowUpdates(true)}
+            title={updates.length ? `มีอัพเดท ${updates.length} รายการ` : 'ตรวจสอบอัพเดท'}
+            className={`relative p-2 rounded-lg transition-colors cursor-pointer ${
+              updates.length
+                ? 'text-amber-300 hover:bg-amber-500/15'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+            }`}
+          >
+            <Bell size={18} />
+            {updates.length > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-amber-500 text-zinc-950 text-[10px] font-bold flex items-center justify-center">
+                {updates.length}
+              </span>
+            )}
+          </button>
           {user?.role === 'admin' && (
             <button
               onClick={() => router.push('/admin')}
@@ -200,6 +246,7 @@ export function HubView({ user }: { user: AuthUser | null }) {
           onClose={() => setAdding(false)}
           onInstall={(m) => handleInstall(m)}
           onChoose={(m) => setChooseEdition(m)}
+          onCancel={handleCancelInstall}
         />
       )}
       {chooseEdition && (
@@ -208,6 +255,7 @@ export function HubView({ user }: { user: AuthUser | null }) {
           progress={progress}
           onClose={() => setChooseEdition(null)}
           onInstall={(ed) => handleInstall(chooseEdition, ed)}
+          onCancel={handleCancelInstall}
         />
       )}
       {opening && <OpeningOverlay module={opening} />}
@@ -219,7 +267,105 @@ export function HubView({ user }: { user: AuthUser | null }) {
           onConfirm={doUninstall}
         />
       )}
+      {showUpdates && (
+        <UpdatesDialog
+          updates={updates}
+          progress={progress}
+          updatingId={updatingId}
+          onClose={() => setShowUpdates(false)}
+          onUpdate={handleUpdate}
+          onCancel={handleCancelInstall}
+        />
+      )}
     </div>
+  )
+}
+
+function UpdatesDialog({
+  updates,
+  progress,
+  updatingId,
+  onClose,
+  onUpdate,
+  onCancel,
+}: {
+  updates: UpdateItem[]
+  progress: InstallProgress | null
+  updatingId: string | null
+  onClose: () => void
+  onUpdate: (u: UpdateItem) => void
+  onCancel: () => void
+}) {
+  const busy = !!updatingId
+  return (
+    <Overlay onClose={busy ? undefined : onClose}>
+      <div className="w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+          <h3 className="font-semibold text-white">อัพเดท</h3>
+          {!busy && (
+            <button onClick={onClose} className="text-zinc-500 hover:text-white cursor-pointer">
+              <X size={18} />
+            </button>
+          )}
+        </div>
+        <div className="p-4 flex flex-col gap-2 max-h-[60vh] overflow-y-auto">
+          {updates.length === 0 && (
+            <div className="text-center py-8 text-zinc-400">
+              <Check className="mx-auto mb-2 text-emerald-400" size={28} />
+              <p className="text-sm">ทุกอย่างเป็นเวอร์ชันล่าสุดแล้ว</p>
+            </div>
+          )}
+          {updates.map((u) => {
+            const isUpdating = updatingId === u.id
+            const isHub = u.kind === 'hub'
+            return (
+              <div key={u.id} className="flex items-center gap-3 p-3 rounded-xl bg-zinc-950/60 border border-zinc-800">
+                <div className="text-2xl">{u.icon || '📦'}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-white">{u.name}</span>
+                    {isHub && <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300">แอปหลัก</span>}
+                  </div>
+                  <p className="text-xs text-zinc-500">
+                    {u.installed} <span className="text-zinc-600">→</span>{' '}
+                    <span className="text-amber-300">{u.latest}</span>
+                  </p>
+                  {isUpdating && progress && (
+                    <div className="mt-2 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-amber-500 transition-all" style={{ width: `${progress.percent}%` }} />
+                    </div>
+                  )}
+                </div>
+                {isHub ? (
+                  <span className="shrink-0 text-[11px] text-zinc-500">เร็ว ๆ นี้</span>
+                ) : isUpdating ? (
+                  <div className="shrink-0 flex items-center gap-2">
+                    <span className="flex items-center gap-1 text-sm text-amber-300">
+                      <Loader2 size={14} className="animate-spin" /> {progress?.percent ?? 0}%
+                    </span>
+                    <button
+                      onClick={onCancel}
+                      title="หยุด"
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-medium cursor-pointer bg-red-600/90 hover:bg-red-500 text-white"
+                    >
+                      <Square size={13} className="fill-current" /> หยุด
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    disabled={busy}
+                    onClick={() => onUpdate(u)}
+                    className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer disabled:cursor-not-allowed enabled:bg-amber-500 enabled:hover:bg-amber-400 enabled:text-zinc-950 disabled:bg-zinc-800 disabled:text-zinc-500"
+                  >
+                    <RefreshCw size={14} /> อัพเดท
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </Overlay>
   )
 }
 
@@ -336,14 +482,20 @@ function EditionChooser({
   progress,
   onClose,
   onInstall,
+  onCancel,
 }: {
   module: RegistryModule
   progress: InstallProgress | null
   onClose: () => void
   onInstall: (edition: string) => void
+  onCancel: () => void
 }) {
   const [installingEd, setInstallingEd] = useState<string | null>(null)
   const busy = !!installingEd
+  // Install finished (done or cancelled) → progress cleared → revert the button.
+  useEffect(() => {
+    if (!progress) setInstallingEd(null)
+  }, [progress])
 
   return (
     <Overlay onClose={busy ? undefined : onClose}>
@@ -392,31 +544,35 @@ function EditionChooser({
                     </li>
                   ))}
                 </ul>
-                <button
-                  disabled={!available || busy}
-                  onClick={() => {
-                    setInstallingEd(def.key)
-                    onInstall(def.key)
-                  }}
-                  className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
-                    highlight
-                      ? 'bg-white text-zinc-900 enabled:hover:bg-zinc-100 disabled:bg-white/40'
-                      : 'bg-zinc-800 text-white enabled:hover:bg-zinc-700 disabled:bg-zinc-800/50 disabled:text-zinc-500'
-                  }`}
-                >
-                  {isInstalling ? (
-                    <>
-                      <Loader2 size={15} className="animate-spin" />
-                      {progress ? `${progress.percent}%` : '...'}
-                    </>
-                  ) : available ? (
-                    <>
-                      <Download size={15} /> {def.btn}
-                    </>
-                  ) : (
-                    'ยังไม่พร้อม'
-                  )}
-                </button>
+                {isInstalling ? (
+                  <button
+                    onClick={onCancel}
+                    className="w-full py-2.5 rounded-xl text-sm font-semibold transition-colors cursor-pointer flex items-center justify-center gap-2 bg-red-600/90 hover:bg-red-500 text-white"
+                  >
+                    <Square size={14} className="fill-current" /> หยุด ({progress?.percent ?? 0}%)
+                  </button>
+                ) : (
+                  <button
+                    disabled={!available || busy}
+                    onClick={() => {
+                      setInstallingEd(def.key)
+                      onInstall(def.key)
+                    }}
+                    className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                      highlight
+                        ? 'bg-white text-zinc-900 enabled:hover:bg-zinc-100 disabled:bg-white/40'
+                        : 'bg-zinc-800 text-white enabled:hover:bg-zinc-700 disabled:bg-zinc-800/50 disabled:text-zinc-500'
+                    }`}
+                  >
+                    {available ? (
+                      <>
+                        <Download size={15} /> {def.btn}
+                      </>
+                    ) : (
+                      'ยังไม่พร้อม'
+                    )}
+                  </button>
+                )}
                 <p className="text-center text-[11px] text-zinc-500 mt-2">
                   {isInstalling && progress
                     ? `${PHASE_LABEL[progress.phase]} ${progress.percent}%${progress.parts && progress.parts > 1 ? ` · พาร์ท ${progress.part}/${progress.parts}` : ''}`
@@ -440,6 +596,7 @@ function AddModuleDialog({
   onClose,
   onInstall,
   onChoose,
+  onCancel,
 }: {
   registry: RegistryModule[]
   installed: InstalledMap
@@ -447,6 +604,7 @@ function AddModuleDialog({
   onClose: () => void
   onInstall: (m: RegistryModule) => void
   onChoose: (m: RegistryModule) => void
+  onCancel: () => void
 }) {
   const choices = registry.filter((m) => !installed[m.id])
   const busy = !!progress
@@ -491,23 +649,29 @@ function AddModuleDialog({
                     </div>
                   )}
                 </div>
-                <button
-                  disabled={!m.available || busy}
-                  onClick={() => (m.editions ? onChoose(m) : onInstall(m))}
-                  className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer disabled:cursor-not-allowed enabled:bg-violet-600 enabled:hover:bg-violet-500 enabled:text-white disabled:bg-zinc-800 disabled:text-zinc-500"
-                >
-                  {isInstalling ? (
-                    <>
-                      <Loader2 size={14} className="animate-spin" /> {progress?.percent ?? 0}%
-                    </>
-                  ) : m.available ? (
-                    <>
-                      <Download size={14} /> ติดตั้ง
-                    </>
-                  ) : (
-                    'เร็ว ๆ นี้'
-                  )}
-                </button>
+                {isInstalling ? (
+                  <button
+                    onClick={onCancel}
+                    title="หยุด"
+                    className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer bg-red-600/90 hover:bg-red-500 text-white"
+                  >
+                    <Square size={13} className="fill-current" /> หยุด
+                  </button>
+                ) : (
+                  <button
+                    disabled={!m.available || busy}
+                    onClick={() => (m.editions ? onChoose(m) : onInstall(m))}
+                    className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer disabled:cursor-not-allowed enabled:bg-violet-600 enabled:hover:bg-violet-500 enabled:text-white disabled:bg-zinc-800 disabled:text-zinc-500"
+                  >
+                    {m.available ? (
+                      <>
+                        <Download size={14} /> ติดตั้ง
+                      </>
+                    ) : (
+                      'เร็ว ๆ นี้'
+                    )}
+                  </button>
+                )}
               </div>
             )
           })}

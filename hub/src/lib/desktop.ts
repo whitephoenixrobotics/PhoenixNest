@@ -48,6 +48,16 @@ export interface InstallProgress {
   parts?: number
 }
 
+export interface UpdateItem {
+  id: string
+  name: string
+  icon?: string
+  kind: 'module' | 'hub'
+  edition?: string | null
+  installed: string
+  latest: string
+}
+
 export interface PhoenixNestBridge {
   isDesktop: true
   version: string
@@ -55,8 +65,10 @@ export interface PhoenixNestBridge {
   openModule: (id: string, storage: StorageEntry[]) => Promise<OpenModuleResult>
   closeModule: () => Promise<{ ok: boolean }>
   getRegistry: () => Promise<{ ok: boolean; error?: string; registry: { modules: RegistryModule[] } }>
+  getUpdates: () => Promise<{ ok: boolean; error?: string; updates: UpdateItem[] }>
   getInstalled: () => Promise<InstalledMap>
-  installModule: (id: string, edition?: string) => Promise<{ ok: boolean; error?: string }>
+  installModule: (id: string, edition?: string) => Promise<{ ok: boolean; error?: string; cancelled?: boolean }>
+  cancelInstall: () => Promise<{ ok: boolean }>
   uninstallModule: (id: string) => Promise<{ ok: boolean; error?: string }>
   onInstallProgress: (cb: (p: InstallProgress) => void) => () => void
 }
