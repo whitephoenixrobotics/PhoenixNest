@@ -86,6 +86,15 @@ for pkg in ("torch", "ultralytics", "easyocr", "faster_whisper", "ctranslate2"):
     except Exception:
         pass
 
+# App's own runtime data files (NOT Python modules, so PyInstaller won't pick
+# them up). The Arduino "Flash firmware" button shells out to a bundled avrdude
+# + StandardFirmata.hex that flash.py reads from Path(__file__).parent/"firmware".
+# Without this, the packaged build reports "missing files under firmware/".
+from pathlib import Path as _Path
+_fw_dir = _Path("app/extensions/arduino/firmware")
+datas += [(str(p), "app/extensions/arduino/firmware")
+          for p in _fw_dir.glob("*") if p.is_file()]
+
 # ── Native libs (.dll / .pyd for Windows) ─────────────────────────────────────
 binaries = []
 for pkg in (
