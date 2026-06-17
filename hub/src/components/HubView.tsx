@@ -17,6 +17,10 @@ import {
   type UpdateItem,
 } from '@/lib/desktop'
 
+// Where to get a new hub build (self-update apply isn't wired yet — the update
+// notification opens this page so the user can download the latest installer).
+const HUB_RELEASES_URL = 'https://github.com/whitephoenixrobotics/PhoenixNest/releases/latest'
+
 export function HubView({ user }: { user: AuthUser | null }) {
   const router = useRouter()
   const [registry, setRegistry] = useState<RegistryModule[]>([])
@@ -337,7 +341,12 @@ function UpdatesDialog({
                   )}
                 </div>
                 {isHub ? (
-                  <span className="shrink-0 text-[11px] text-zinc-500">เร็ว ๆ นี้</span>
+                  <button
+                    onClick={() => window.phoenixNest?.openExternal?.(HUB_RELEASES_URL)}
+                    className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer bg-amber-500 hover:bg-amber-400 text-zinc-950"
+                  >
+                    <Download size={14} /> ดาวน์โหลด
+                  </button>
                 ) : isUpdating ? (
                   <div className="shrink-0 flex items-center gap-2">
                     <span className="flex items-center gap-1 text-sm text-amber-300">

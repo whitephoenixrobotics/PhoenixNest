@@ -172,6 +172,42 @@ function dirHasFiles(dir) {
   }
 }
 
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
+// Windows: antivirus (Defender) and the Search indexer transiently lock
+// freshly-extracted files — especially .exe — so an immediate rename fails with
+// EPERM/EBUSY/EACCES. The lock clears within a second or two, so retry with
+// backoff before giving up.
+async function renameWithRetry(from, to, attempts = 12) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      fs.renameSync(from, to)
+      return
+    } catch (e) {
+      const transient = e && ['EPERM', 'EBUSY', 'EACCES', 'ENOTEMPTY'].includes(e.code)
+      if (!transient || i === attempts - 1) throw e
+      installLog(`[install] rename ${e.code}, retry ${i + 1}/${attempts}`)
+      await sleep(200 * (i + 1))
+    }
+  }
+}
+
+// Move a directory atomically when possible; fall back to copy+remove if the
+// filesystem keeps refusing the rename (a persistently locked file, or staging
+// landing on a different volume).
+async function moveDir(from, to) {
+  try {
+    await renameWithRetry(from, to)
+  } catch (e) {
+    if (!e || !['EPERM', 'EBUSY', 'EACCES', 'ENOTEMPTY', 'EXDEV'].includes(e.code)) throw e
+    installLog(`[install] rename failed (${e.code}); falling back to copy`)
+    fs.cpSync(from, to, { recursive: true })
+    fs.rmSync(from, { recursive: true, force: true })
+  }
+}
+
 // Extract a zip with yauzl (pure JS — handles zip64 + large files, no external
 // tar/PowerShell binary whose path parsing varies). Streams each entry and
 // reports per-entry progress. onProgress(percent).
@@ -314,18 +350,21 @@ async function installModule(spec, onProgress, signal) {
       /* no manifest — fall back to spec fields */
     }
 
-    // 4. Atomic swap — the ONLY moment the live install dir is touched.
+    // 4. Swap — the ONLY moment the live install dir is touched. Rename is
+    // retried (Windows AV briefly locks freshly-extracted files) and falls back
+    // to copy if the FS keeps refusing it; on failure the old install is
+    // restored so the app is never left half-updated.
     fs.rmSync(backup, { recursive: true, force: true })
     const hadOld = fs.existsSync(finalDir)
-    if (hadOld) fs.renameSync(finalDir, backup)
+    if (hadOld) await renameWithRetry(finalDir, backup)
     try {
-      fs.renameSync(staging, finalDir)
+      await moveDir(staging, finalDir)
     } catch (e) {
       if (hadOld) {
         try {
-          fs.renameSync(backup, finalDir)
+          await renameWithRetry(backup, finalDir)
         } catch {
-          /* ignore */
+          /* leave backup dir for manual recovery */
         }
       }
       throw e
