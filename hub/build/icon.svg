@@ -1,0 +1,43 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c3aed"/>
+      <stop offset="0.55" stop-color="#a21caf"/>
+      <stop offset="1" stop-color="#f97316"/>
+    </linearGradient>
+    <linearGradient id="flame" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#fff7ed"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="116" fill="url(#bg)"/>
+  <!-- Phoenix: rising body with two swept wings -->
+  <g fill="url(#flame)">
+    <!-- left wing -->
+    <path d="M256 150
+             C200 120 132 126 96 168
+             C150 170 176 196 196 232
+             C150 224 120 240 104 274
+             C160 268 196 286 224 318
+             C200 326 184 344 176 372
+             C214 348 244 348 256 360 Z"/>
+    <!-- right wing (mirror) -->
+    <path d="M256 150
+             C312 120 380 126 416 168
+             C362 170 336 196 316 232
+             C362 224 392 240 408 274
+             C352 268 316 286 288 318
+             C312 326 328 344 336 372
+             C298 348 268 348 256 360 Z"/>
+    <!-- head + crest -->
+    <path d="M256 96
+             C238 110 232 132 240 156
+             C246 174 256 184 256 184
+             C256 184 266 174 272 156
+             C280 132 274 110 256 96 Z"/>
+    <!-- tail -->
+    <path d="M256 350
+             C246 380 244 410 256 440
+             C268 410 266 380 256 350 Z"/>
+  </g>
+</svg>

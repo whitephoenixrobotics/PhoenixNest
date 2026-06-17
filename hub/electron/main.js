@@ -19,8 +19,11 @@ function killPort(port) {
   }
 }
 
-// Module process logs (gitignored) — for diagnosing embedded modules.
-const LOG_DIR = path.join(__dirname, '..', '.module-logs')
+// Module process logs — for diagnosing embedded modules. Packaged app code lives
+// in a read-only asar, so write logs to userData there; dev keeps them in-repo.
+const LOG_DIR = app.isPackaged
+  ? path.join(app.getPath('userData'), 'module-logs')
+  : path.join(__dirname, '..', '.module-logs')
 try {
   fs.mkdirSync(LOG_DIR, { recursive: true })
 } catch {
@@ -34,8 +37,14 @@ function logFd(name) {
   }
 }
 
-const APP_URL = process.env.PHOENIXNEST_APP_URL || 'http://localhost:3000'
+// Dev: load `next dev`. Packaged: load the embedded static server (set in
+// app.whenReady). PHOENIXNEST_APP_URL overrides both (used for testing a
+// packaged build against a live dev server).
+let APP_URL = process.env.PHOENIXNEST_APP_URL || 'http://localhost:3000'
 const LOOPBACK_PORT = 53682
+// Fixed port so the renderer origin (and thus its Supabase session in
+// localStorage) stays stable across launches.
+const SHELL_PORT = 53700
 const MODULE_TOPBAR = 44 // px reserved at the top for the hub's back bar
 
 // Repo root: hub/electron → hub → PhoenixNest
@@ -70,7 +79,66 @@ const MODULES = {
 
 let mainWindow = null
 let loopbackServer = null
+let staticServer = null
 let moduleView = null
+
+// ── Production renderer: serve the static-exported Next app (`out/`) ──
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.ico': 'image/x-icon',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.map': 'application/json; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8',
+}
+
+// Map a URL path to a file inside the exported `out/` dir. Static export emits
+// `login.html`, `auth/callback.html`, etc., so try the path, then `.html`, then
+// `/index.html`, and fall back to `index.html` (SPA deep-link safety).
+function resolveStatic(root, pathname) {
+  const clean = pathname.replace(/^\/+/, '').replace(/\/+$/, '')
+  const tries = clean === '' ? ['index.html'] : [clean, `${clean}.html`, path.join(clean, 'index.html')]
+  for (const t of tries) {
+    const full = path.join(root, t)
+    if (full.startsWith(root) && fs.existsSync(full) && fs.statSync(full).isFile()) return full
+  }
+  const idx = path.join(root, 'index.html')
+  return fs.existsSync(idx) ? idx : null
+}
+
+function startStaticServer() {
+  const outDir = path.join(app.getAppPath(), 'out')
+  return new Promise((resolve, reject) => {
+    staticServer = http.createServer((req, res) => {
+      try {
+        const pathname = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname)
+        const file = resolveStatic(outDir, pathname)
+        if (!file) {
+          res.writeHead(404)
+          return res.end('not found')
+        }
+        res.writeHead(200, { 'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream', 'Cache-Control': 'no-cache' })
+        fs.createReadStream(file).pipe(res)
+      } catch {
+        res.writeHead(500)
+        res.end()
+      }
+    })
+    staticServer.on('error', reject)
+    staticServer.listen(SHELL_PORT, '127.0.0.1', () => resolve(`http://127.0.0.1:${SHELL_PORT}`))
+  })
+}
 const procs = [] // spawned module processes
 let injectStorage = [] // supabase storage entries to seed into the embedded module
 
@@ -520,7 +588,15 @@ ipcMain.handle('module:uninstall', (_e, id) => {
   }
 })
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Packaged build with no explicit override → serve the bundled static export.
+  if (app.isPackaged && !process.env.PHOENIXNEST_APP_URL) {
+    try {
+      APP_URL = await startStaticServer()
+    } catch (e) {
+      console.error('[phoenixnest] static server failed:', e.message)
+    }
+  }
   startLoopbackServer()
   createWindow()
   app.on('activate', () => {
