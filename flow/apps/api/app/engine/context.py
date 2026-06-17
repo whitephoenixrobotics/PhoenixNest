@@ -26,17 +26,26 @@ class ExecutionContext:
         """
         inputs: dict = {}
         for edge in edges:
-            if edge["target"] == node_id:
-                handle = edge.get("targetHandle") or "input"
-                key = handle
-                n = 1
-                while key in inputs:
-                    n += 1
-                    key = f"{handle}#{n}"
-                src = self.get_output(edge["source"])
-                # Tag with the source block label for {Block.field} templating.
-                inputs[key] = ({**src, "_block": self.node_labels.get(edge["source"], "")}
-                               if isinstance(src, dict) else src)
+            if edge["target"] != node_id:
+                continue
+            src = self.get_output(edge["source"])
+            # An If/Else branch handle only delivers data when ITS branch is the
+            # active one. Drop edges coming from an inactive branch, so a node
+            # wired to several branches (e.g. one Display ← both IF and ELSE)
+            # receives a single payload instead of one per branch.
+            if isinstance(src, dict):
+                active = src.get("active_branch")
+                if active is not None and edge.get("sourceHandle") != active:
+                    continue
+            handle = edge.get("targetHandle") or "input"
+            key = handle
+            n = 1
+            while key in inputs:
+                n += 1
+                key = f"{handle}#{n}"
+            # Tag with the source block label for {Block.field} templating.
+            inputs[key] = ({**src, "_block": self.node_labels.get(edge["source"], "")}
+                           if isinstance(src, dict) else src)
         return inputs
 
     # Global registry of active queues (WS pub/sub per execution)

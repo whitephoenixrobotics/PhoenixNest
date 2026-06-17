@@ -89,17 +89,25 @@ class FlowExecutor:
                 # assignment would let the last one overwrite the others.
                 inputs = {}
                 for e in edges:
-                    if e["target"] == nid:
-                        handle = e.get("targetHandle") or "input"
-                        key = handle
-                        n = 1
-                        while key in inputs:
-                            n += 1
-                            key = f"{handle}#{n}"
-                        src = outputs.get(e["source"], {})
-                        # Tag each input with its source block label so templating
-                        # blocks (Join Text) can disambiguate {Block.field}.
-                        inputs[key] = {**src, "_block": labels.get(e["source"], "")} if isinstance(src, dict) else src
+                    if e["target"] != nid:
+                        continue
+                    src = outputs.get(e["source"], {})
+                    # Skip edges from an inactive If/Else branch (mirror of
+                    # resolve_inputs) so one Display ← IF + ELSE shows a single
+                    # result, not one per branch.
+                    if isinstance(src, dict):
+                        active = src.get("active_branch")
+                        if active is not None and e.get("sourceHandle") != active:
+                            continue
+                    handle = e.get("targetHandle") or "input"
+                    key = handle
+                    n = 1
+                    while key in inputs:
+                        n += 1
+                        key = f"{handle}#{n}"
+                    # Tag each input with its source block label so templating
+                    # blocks (Join Text) can disambiguate {Block.field}.
+                    inputs[key] = {**src, "_block": labels.get(e["source"], "")} if isinstance(src, dict) else src
                 try:
                     out = await handler.execute({**config, "_node_id": nid}, inputs)
                 except Exception as ex:  # noqa: BLE001
