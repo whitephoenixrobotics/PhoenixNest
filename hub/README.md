@@ -3,7 +3,7 @@
 The ecosystem **shell** — a lightweight desktop app (Next.js + Electron + Supabase)
 that is the single entry point to everything in Phoenix Nest.
 
-It is intentionally small: **login + a module hub**. Modules (AI Flow, Circuit,
+It is intentionally small: **login + a module hub**. Modules (PhoenixFlow, Circuit,
 Python tools) are *not* bundled — the user installs them on demand from the hub.
 
 ## Flow

@@ -12,7 +12,7 @@ const services = require('./services')
 //   phoenix-desktop-gpu  → GPU edition (electron-builder --extraMetadata.name override)
 // Used in the window title and surfaced to the renderer for a UI badge.
 const EDITION = (require('../package.json').name === 'phoenix-desktop-gpu') ? 'GPU' : 'CPU'
-const WINDOW_TITLE = `Phoenix Flow · ${EDITION}`
+const WINDOW_TITLE = `PhoenixFlow · ${EDITION}`
 
 // ── Configuration (override via env when packaging / deploying) ──────────────
 // In dev these default to the user's local dev servers (start.bat). In a
@@ -112,7 +112,7 @@ function createWindow() {
   // would otherwise wipe out "· GPU"/"· CPU".
   mainWindow.on('page-title-updated', (e, pageTitle) => {
     e.preventDefault()
-    const base = pageTitle && pageTitle !== 'Phoenix Flow' ? `${pageTitle} — Phoenix Flow` : 'Phoenix Flow'
+    const base = pageTitle && pageTitle !== 'PhoenixFlow' ? `${pageTitle} — PhoenixFlow` : 'PhoenixFlow'
     mainWindow.setTitle(`${base} · ${EDITION}`)
   })
 
@@ -190,7 +190,7 @@ align-items:center;justify-content:center;height:100vh;margin:0;text-align:cente
 .d{width:56px;height:56px;border-radius:50%;background:rgba(124,58,237,.15);color:#a78bfa;
 display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px}
 </style></head><body><div class="c"><div class="d">✓</div>
-<h1>เข้าสู่ระบบสำเร็จ</h1><p>กลับไปที่แอป Phoenix Flow ได้เลย — ปิดแท็บนี้ได้</p>
+<h1>เข้าสู่ระบบสำเร็จ</h1><p>กลับไปที่แอป PhoenixFlow ได้เลย — ปิดแท็บนี้ได้</p>
 <script>setTimeout(function(){window.close()},1500)</script></div></body></html>`
 
 // ── Custom-protocol deep link (legacy fallback) ──────────────────────────────

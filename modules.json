@@ -5,7 +5,7 @@
   "modules": [
     {
       "id": "ai-flow",
-      "name": "AI Flow",
+      "name": "PhoenixFlow",
       "path": "flow",
       "icon": "🤖",
       "description": "Visual AI task automation — node editor, execution engine, and desktop app (FastAPI + Next.js + Electron)",

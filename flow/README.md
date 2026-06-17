@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🔥 Phoenix Flow
+# 🔥 PhoenixFlow
 
 **AI Block-based Platform — สร้าง AI workflow แบบลากวาง ไม่ต้องเขียนโค้ด**
 
@@ -11,9 +11,9 @@
 
 ---
 
-## Phoenix Flow คืออะไร
+## PhoenixFlow คืออะไร
 
-Phoenix Flow คือแพลตฟอร์มสร้าง AI แบบ **block-based** (คล้าย Scratch / Node-RED แต่เน้น AI/Computer Vision) —
+PhoenixFlow คือแพลตฟอร์มสร้าง AI แบบ **block-based** (คล้าย Scratch / Node-RED แต่เน้น AI/Computer Vision) —
 ผู้ใช้ลากบล็อกมาต่อกันบน canvas เพื่อสร้าง workflow เช่น *กล้อง → ตรวจจับวัตถุ → แสดงผล* โดยไม่ต้องเขียนโปรแกรม
 
 จุดเด่น:
@@ -145,5 +145,5 @@ start-desktop.bat
 ---
 
 <div align="center">
-<sub>Phoenix Flow · v0.4.1 · ใช้งานบนเครื่องของคุณเอง 🔥</sub>
+<sub>PhoenixFlow · v0.4.1 · ใช้งานบนเครื่องของคุณเอง 🔥</sub>
 </div>

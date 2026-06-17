@@ -39,7 +39,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setVersion(desktopVersion())
+    setVersion(desktopVersion() || process.env.NEXT_PUBLIC_APP_VERSION || null)
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setEmbedded(isEmbeddedInHub())
   }, [])
@@ -188,41 +188,48 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2">
           <Logo size={28} />
           <h1 className="text-lg font-bold text-white">PhoenixFlow</h1>
-          {version && <span className="text-[11px] text-zinc-600">v{version}</span>}
         </div>
-        {/* Account / admin / logout — hidden when embedded in PhoenixNest,
-            which owns account + user management at the hub level. */}
-        {!embedded && (
-          <div className="flex items-center gap-2">
-            {me?.role === 'admin' && (
+        {/* Right side: version (always) + account/admin/logout. When embedded
+            in the PhoenixNest hub the account cluster is hidden — the hub owns
+            it — so only the version badge shows on the right. */}
+        <div className="flex items-center gap-2">
+          {version && (
+            <span className="text-[11px] font-mono text-zinc-400 px-2 py-1 rounded-md bg-zinc-800/60 border border-zinc-700/50">
+              v{version}
+            </span>
+          )}
+          {!embedded && (
+            <>
+              {me?.role === 'admin' && (
+                <button
+                  onClick={() => router.push('/admin')}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-violet-300 text-sm rounded-lg transition-colors"
+                >
+                  <ShieldCheck size={14} /> จัดการผู้ใช้
+                </button>
+              )}
+              {me && (
+                <span className="hidden sm:flex items-center gap-2 px-2 text-sm text-zinc-400">
+                  {me.picture ? (
+                    <img src={me.picture} alt="" referrerPolicy="no-referrer" className="w-7 h-7 rounded-full" />
+                  ) : (
+                    <span className="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center text-xs">
+                      {me.name?.[0]?.toUpperCase()}
+                    </span>
+                  )}
+                  <span className="max-w-[140px] truncate">{me.name}</span>
+                </span>
+              )}
               <button
-                onClick={() => router.push('/admin')}
-                className="flex items-center gap-1.5 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-violet-300 text-sm rounded-lg transition-colors"
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 text-sm rounded-lg transition-colors"
+                title="ออกจากระบบ"
               >
-                <ShieldCheck size={14} /> จัดการผู้ใช้
+                <LogOut size={14} />
               </button>
-            )}
-            {me && (
-              <span className="hidden sm:flex items-center gap-2 px-2 text-sm text-zinc-400">
-                {me.picture ? (
-                  <img src={me.picture} alt="" referrerPolicy="no-referrer" className="w-7 h-7 rounded-full" />
-                ) : (
-                  <span className="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center text-xs">
-                    {me.name?.[0]?.toUpperCase()}
-                  </span>
-                )}
-                <span className="max-w-[140px] truncate">{me.name}</span>
-              </span>
-            )}
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 text-sm rounded-lg transition-colors"
-              title="ออกจากระบบ"
-            >
-              <LogOut size={14} />
-            </button>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </header>
 
       {loading ? (

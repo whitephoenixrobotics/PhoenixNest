@@ -1,4 +1,4 @@
-# Phoenix Flow — Desktop App + Google Login + Admin Approval + Auto-update
+# PhoenixFlow — Desktop App + Google Login + Admin Approval + Auto-update
 
 คู่มือนี้อธิบายระบบล็อกอิน (Google), การอนุมัติผู้ใช้, แอป Desktop (Electron) และระบบอัปเดตอัตโนมัติ
 

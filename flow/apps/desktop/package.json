@@ -2,8 +2,8 @@
   "name": "phoenix-desktop",
   "version": "0.4.1",
   "private": true,
-  "description": "Phoenix Flow Desktop (Electron shell)",
-  "author": "Phoenix Flow",
+  "description": "PhoenixFlow Desktop (Electron shell)",
+  "author": "PhoenixFlow",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
@@ -20,7 +20,7 @@
   },
   "build": {
     "appId": "com.phoenixflow.desktop",
-    "productName": "Phoenix Flow",
+    "productName": "PhoenixFlow",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -45,7 +45,7 @@
     ],
     "protocols": [
       {
-        "name": "Phoenix Flow",
+        "name": "PhoenixFlow",
         "schemes": ["phoenixflow"]
       }
     ],

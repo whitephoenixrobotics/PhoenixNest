@@ -1,4 +1,4 @@
-# Phoenix Flow — Standalone Packaging Guide
+# PhoenixFlow — Standalone Packaging Guide
 
 How the desktop installer is built, how to rebuild it, and how it works at runtime.
 
@@ -6,7 +6,7 @@ How the desktop installer is built, how to rebuild it, and how it works at runti
 
 | Component | Source | Bundled as |
 |-----------|--------|-----------|
-| Electron shell | `apps/desktop/src/` | `Phoenix Flow.exe` |
+| Electron shell | `apps/desktop/src/` | `PhoenixFlow.exe` |
 | Backend (FastAPI + AI) | `apps/api/` | `resources/phoenix-api/phoenix-api.exe` |
 | Frontend (Next.js) | `apps/web/` | `resources/web/server.js` (Next standalone) |
 | Database | created at runtime | `%LOCALAPPDATA%\PhoenixFlow\phoenix.db` (SQLite) |
@@ -18,7 +18,7 @@ bundled or replaced (SQLite). User signs in with Google via Supabase.
 ## Runtime architecture
 
 ```
-Phoenix Flow.exe                      (Electron main)
+PhoenixFlow.exe                      (Electron main)
   ├─ spawns phoenix-api.exe :<free>   (FastAPI + AI stack — PyInstaller bundle)
   ├─ spawns ELECTRON_RUN_AS_NODE      (Next standalone server, also :<free>)
   ├─ loopback :53682                  (Supabase OAuth redirect)
@@ -56,8 +56,8 @@ xcopy /E /I /Y public .next\standalone\apps\web\public
 :: 3. Installer (~5-10 min)
 cd ..\desktop
 pnpm dist:win
-:: → apps/desktop/dist/Phoenix Flow Setup 0.1.0.exe
-:: → apps/desktop/dist/win-unpacked/Phoenix Flow.exe (portable)
+:: → apps/desktop/dist/PhoenixFlow Setup 0.1.0.exe
+:: → apps/desktop/dist/win-unpacked/PhoenixFlow.exe (portable)
 ```
 
 If the NSIS step fails with "Cannot create symbolic link", enable Developer Mode

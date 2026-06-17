@@ -211,7 +211,7 @@ function LineCard() {
   const [token, setToken] = useState('')
   const [showToken, setShowToken] = useState(false)
   const [editTo, setEditTo] = useState('')
-  const [testText, setTestText] = useState('ทดสอบจาก Phoenix Flow ✅')
+  const [testText, setTestText] = useState('ทดสอบจาก PhoenixFlow ✅')
 
   useEffect(() => { refreshStatus() }, [refreshStatus])
   useEffect(() => { setEditTo(defaultTo) }, [defaultTo])

@@ -43,7 +43,7 @@ export function Logo({ size = 24, className }: LogoProps) {
     <span
       className="relative inline-flex shrink-0"
       style={{ width: size, height: size }}
-      title={`Phoenix Flow ${edition} edition`}
+      title={`PhoenixFlow ${edition} edition`}
     >
       {img}
       <span

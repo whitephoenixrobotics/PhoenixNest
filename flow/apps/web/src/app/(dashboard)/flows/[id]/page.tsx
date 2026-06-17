@@ -118,7 +118,7 @@ export default function FlowEditorPage() {
         <div className="text-zinc-300">โหลด flow ไม่สำเร็จ</div>
         <div className="text-sm text-red-400 max-w-md">{loadError}</div>
         <div className="text-xs text-zinc-600 max-w-md">
-          ตรวจสอบว่าหน้าต่าง “Phoenix Flow - Backend” ยังเปิดอยู่ (พอร์ต 8000) — ถ้าปิดไป ให้รัน start.bat ใหม่
+          ตรวจสอบว่าหน้าต่าง “PhoenixFlow - Backend” ยังเปิดอยู่ (พอร์ต 8000) — ถ้าปิดไป ให้รัน start.bat ใหม่
         </div>
         <div className="flex gap-2">
           <button onClick={loadFlow} className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm rounded-lg">

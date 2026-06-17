@@ -1,10 +1,10 @@
 @echo off
 chcp 65001 >nul
-title Phoenix Flow - Stop
+title PhoenixFlow - Stop
 cd /d "%~dp0"
 
 echo ============================================
-echo    PHOENIX FLOW - Stopping all services
+echo    PHOENIXFLOW - Stopping all services
 echo ============================================
 echo.
 
@@ -15,8 +15,8 @@ echo [2/2] Stopping frontend (port 3000)...
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :3000 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
 
 REM Close leftover server windows by title
-taskkill /F /FI "WINDOWTITLE eq Phoenix Flow - Backend*" >nul 2>&1
-taskkill /F /FI "WINDOWTITLE eq Phoenix Flow - Frontend*" >nul 2>&1
+taskkill /F /FI "WINDOWTITLE eq PhoenixFlow - Backend*" >nul 2>&1
+taskkill /F /FI "WINDOWTITLE eq PhoenixFlow - Frontend*" >nul 2>&1
 
 echo.
 echo  All services stopped.

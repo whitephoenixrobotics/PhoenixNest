@@ -582,8 +582,8 @@ const BLOCK_CATEGORIES: BlockCategory[] = [
         description: 'Push Flex Message — paste JSON จาก Flex Simulator',
         icon: '🧩',
         defaultConfig: {
-          alt_text: 'Phoenix Flow notification',
-          contents: '{\n  "type": "bubble",\n  "body": {\n    "type": "box",\n    "layout": "vertical",\n    "contents": [\n      { "type": "text", "text": "Hello from Phoenix Flow", "weight": "bold", "size": "md" }\n    ]\n  }\n}',
+          alt_text: 'PhoenixFlow notification',
+          contents: '{\n  "type": "bubble",\n  "body": {\n    "type": "box",\n    "layout": "vertical",\n    "contents": [\n      { "type": "text", "text": "Hello from PhoenixFlow", "weight": "bold", "size": "md" }\n    ]\n  }\n}',
           to: '',
         },
       },
