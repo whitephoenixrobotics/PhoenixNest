@@ -15,10 +15,10 @@ interface Branch {
   // Which incoming slot this branch tests: value1 / value2 / text1 / count1 /
   // detect. Empty = merged/auto (legacy, or before the flow has run).
   source?: string
-  // Extra conditions joined to this branch with AND / OR / NOT. Each term
-  // targets its own slot. (NOT compares the previous term's value with this
-  // term's value — "value1 NOT value2" = the two values differ.)
-  terms?: { op?: 'and' | 'or' | 'not'; source?: string; condition: string; value?: string }[]
+  // Extra conditions joined to this branch. 'and'/'or' combine conditions
+  // logically; a comparator (=, !=, >, <, >=, <=; legacy 'not' = ≠) compares
+  // the previous term's value with this term's. Each term targets its own slot.
+  terms?: { op?: 'and' | 'or' | 'not' | '=' | '!=' | '>' | '<' | '>=' | '<='; source?: string; condition: string; value?: string }[]
 }
 
 type TermLike = { source?: string; condition: string; value?: string }
@@ -39,6 +39,21 @@ const TYPE_LABEL: Record<string, string> = {
   detect: 'detect',
   bool:   'bool',
 }
+
+// Join operators between condition terms: AND/OR combine logically; the rest
+// compare the previous term's value with this term's (value1 > value2, etc.).
+const OP_OPTIONS: { v: string; label: string }[] = [
+  { v: 'and', label: 'AND' },
+  { v: 'or',  label: 'OR' },
+  { v: '=',   label: '=' },
+  { v: '!=',  label: '≠' },
+  { v: '>',   label: '>' },
+  { v: '<',   label: '<' },
+  { v: '>=',  label: '≥' },
+  { v: '<=',  label: '≤' },
+]
+const isCmpOp = (op?: string) => !!op && op !== 'and' && op !== 'or'   // comparator → bare slot
+const normOp = (op?: string) => (op === 'not' ? '!=' : (op ?? 'and'))  // legacy 'not' → ≠
 
 interface CondOpt { key: string; label: string; source: string; condition: string }
 
@@ -64,6 +79,33 @@ function buildOptions(preview?: { type: string; slot?: string }[]): CondOpt[] {
     }
   }
   return opts.length ? opts : generic()
+}
+
+// Source node types whose output slot type is unambiguous — used to show
+// value1/text1/… in the dropdown BEFORE the flow has run. Ambiguous sources
+// (e.g. JSON Extract, whose path types depend on the data) are left to the
+// runtime inputs_preview, which is exact and always preferred.
+const NUMBER_SRC = new Set(['number', 'random_number', 'math_op', 'math_function', 'clamp', 'map_range', 'statistics'])
+const TEXT_SRC = new Set(['text_input', 'speech_to_text', 'join_text', 'text_transform'])
+const DETECT_SRC = new Set(['detect', 'pose'])
+
+function staticSlots(
+  targetId: string,
+  nodes: { id: string; type?: string }[],
+  edges: { source: string; target: string }[],
+): { type: string; slot: string }[] {
+  const typeById = new Map(nodes.map((n) => [n.id, n.type]))
+  const out: { type: string; slot: string }[] = []
+  let nv = 0, nt = 0, detectDone = false
+  for (const e of edges) {
+    if (e.target !== targetId) continue
+    const t = typeById.get(e.source)
+    if (!t) continue
+    if (NUMBER_SRC.has(t)) out.push({ type: 'number', slot: `value${++nv}` })
+    else if (TEXT_SRC.has(t)) out.push({ type: 'text', slot: `text${++nt}` })
+    else if (DETECT_SRC.has(t) && !detectDone) { detectDone = true; out.push({ type: 'detect', slot: 'detect' }) }
+  }
+  return out
 }
 
 // The dropdown key matching a (source, condition).
@@ -164,6 +206,8 @@ export function IfElseNode({ id, data, selected }: Props) {
     | undefined
   const updateNodeConfig = useFlowStore((s) => s.updateNodeConfig)
   const selectNode = useFlowStore((s) => s.selectNode)
+  const edges = useFlowStore((s) => s.edges)
+  const nodes = useFlowStore((s) => s.nodes)
 
   const branches = defaultBranches(data.config)
   const activeIndex = output?.active_index ?? -1
@@ -172,8 +216,14 @@ export function IfElseNode({ id, data, selected }: Props) {
   const multiOutput = !!(data.config?.multi_output)
 
   // Dropdown options derived from the live inputs: one per slot (value1/value2/
-  // text1…) + class/count/any for a detection input; generic types before run.
-  const condOptions = buildOptions(output?.inputs_preview)
+  // text1…) + class/count/any for a detection input. Prefer the exact runtime
+  // preview; before the flow runs, fall back to a static guess from connected
+  // source node types so slots still show; generic types if neither applies.
+  const runtimePreview = output?.inputs_preview
+  const preview = (runtimePreview && runtimePreview.length)
+    ? runtimePreview
+    : staticSlots(id, nodes, edges)
+  const condOptions = buildOptions(preview)
 
   const updateBranches = (next: Branch[]) =>
     updateNodeConfig(id, { branches: next })
@@ -193,9 +243,9 @@ export function IfElseNode({ id, data, selected }: Props) {
     }))
   }
   const addTerm = (i: number, op: string) => {
-    if (op !== 'and' && op !== 'or' && op !== 'not') return
+    if (!OP_OPTIONS.some((o) => o.v === op)) return
     const def = condOptions[0] ?? { source: '', condition: 'value' }
-    const t: Term = { op, source: def.source, condition: def.condition, value: '' }
+    const t: Term = { op: op as Term['op'], source: def.source, condition: def.condition, value: '' }
     updateBranches(branches.map((b, idx) => (idx === i ? { ...b, terms: [...(b.terms ?? []), t] } : b)))
   }
   const removeTerm = (i: number, j: number) => {
@@ -307,26 +357,24 @@ export function IfElseNode({ id, data, selected }: Props) {
                     {(branch.terms ?? []).map((t, j) => (
                       <span key={j} className="flex items-center gap-1">
                         <select
-                          value={t.op ?? 'and'}
+                          value={normOp(t.op)}
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => {
                             if (e.target.value === '') removeTerm(i, j)   // blank = remove this term
                             else updateTerm(i, j, { op: e.target.value as Term['op'] })
                           }}
-                          title="เลือกช่องว่าง = ลบเงื่อนไขนี้"
+                          title="AND/OR = รวมเงื่อนไข · = ≠ > < ≥ ≤ = เทียบ 2 ค่า · ช่องว่าง = ลบ"
                           className="nodrag w-9 text-center text-[10px] font-bold bg-violet-500/15 border border-violet-700/40 rounded px-0 py-1 text-violet-300 focus:outline-none focus:border-violet-500 appearance-none cursor-pointer"
                         >
                           <option value=""></option>
-                          <option value="and">AND</option>
-                          <option value="or">OR</option>
-                          <option value="not">NOT</option>
+                          {OP_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
                         </select>
                         <TermFields
                           term={t}
                           condOptions={condOptions}
                           stop={(e) => e.stopPropagation()}
                           onChange={(p) => updateTerm(i, j, p)}
-                          hideExpr={t.op === 'not'}
+                          hideExpr={isCmpOp(t.op)}
                         />
                       </span>
                     ))}
@@ -335,13 +383,11 @@ export function IfElseNode({ id, data, selected }: Props) {
                       value=""
                       onClick={(e) => e.stopPropagation()}
                       onChange={(e) => addTerm(i, e.target.value)}
-                      title="เพิ่มเงื่อนไข (AND / OR / NOT)"
+                      title="เพิ่มเงื่อนไข — AND/OR หรือตัวเทียบ = ≠ > < ≥ ≤"
                       className="nodrag w-4 text-xs text-center bg-zinc-800 border border-zinc-700 rounded px-0 py-1 text-zinc-500 hover:text-violet-300 hover:border-violet-600 focus:outline-none focus:border-violet-500 appearance-none cursor-pointer"
                     >
                       <option value="">▾</option>
-                      <option value="and">AND</option>
-                      <option value="or">OR</option>
-                      <option value="not">NOT</option>
+                      {OP_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
                     </select>
                   </div>
                 ) : (

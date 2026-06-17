@@ -162,6 +162,36 @@ def _slot_num(x):
     return None
 
 
+# Value comparators between two slots (the previous term's value vs this term's).
+# 'not' is kept as a legacy alias for '!=' (≠).
+_CMP = {
+    "=":   lambda a, b: a == b,
+    "==":  lambda a, b: a == b,
+    "!=":  lambda a, b: a != b,
+    "not": lambda a, b: a != b,
+    ">":   lambda a, b: a > b,
+    "<":   lambda a, b: a < b,
+    ">=":  lambda a, b: a >= b,
+    "<=":  lambda a, b: a <= b,
+}
+
+
+def _cmp(op: str, lv, rv) -> bool:
+    """Compare two slot values. Ordering (>, <, >=, <=) needs both numeric;
+    equality (=, !=) compares numerically when both are numbers, else as text."""
+    fn = _CMP.get(op)
+    if fn is None:
+        return False
+    ln, rn = _slot_num(lv), _slot_num(rv)
+    if op in (">", "<", ">=", "<="):
+        if ln is None or rn is None:
+            return False
+        return fn(ln, rn)
+    if ln is not None and rn is not None:
+        return fn(ln, rn)
+    return fn("" if lv is None else str(lv), "" if rv is None else str(rv))
+
+
 def _input_slots(inputs: dict) -> list[dict]:
     """Ordered, named view of each incoming value so a branch can target a
     specific input: value1/value2 for numbers, text1/text2 for text (a source
@@ -242,9 +272,9 @@ def _branch_matches(branch: dict, data: dict, slot_map: dict) -> bool:
 
       • AND / OR — logical combine of the two terms' conditions, as OR-of-AND
         groups (a new group starts at each OR; terms in a group are AND-ed).
-      • NOT — a value comparison: TRUE when the PREVIOUS term's value and this
-        term's value are NOT equal (e.g. "value1 NOT value2"). A NOT term is a
-        bare slot (no expression); it contributes its boolean to the AND-group.
+      • a comparator (=, !=, >, <, >=, <=) — compares the PREVIOUS term's value
+        with this term's value (e.g. "value1 > value2"). A comparator term is a
+        bare slot (no expression); its boolean joins the current AND-group.
 
     Each term targets its own input slot."""
     if branch.get("condition") == "else":
@@ -267,13 +297,13 @@ def _branch_matches(branch: dict, data: dict, slot_map: dict) -> bool:
         if op == "or":
             groups.append(cur)
             cur = [term_bool(t)]
-        elif op == "not":
+        elif op == "and":
+            cur.append(term_bool(t))
+        else:  # value comparator (=, !=, >, <, >=, <=; legacy 'not' = ≠)
             prev = terms[k - 1]
             lv = (slot_map.get(prev.get("source")) or {}).get("raw")
             rv = (slot_map.get(t.get("source")) or {}).get("raw")
-            cur.append(lv != rv)
-        else:  # and
-            cur.append(term_bool(t))
+            cur.append(_cmp(op, lv, rv))
     groups.append(cur)
     return any(all(g) for g in groups if g)
 
