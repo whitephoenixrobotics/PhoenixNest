@@ -38,3 +38,6 @@ apps/api/data/
 .DS_Store
 Thumbs.db
 *.log
+
+# ─── Release build staging (module zips/parts — uploaded to GitHub Releases) ───
+_release/
