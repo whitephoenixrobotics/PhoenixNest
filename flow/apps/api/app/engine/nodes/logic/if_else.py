@@ -374,6 +374,10 @@ class IfElseHandler(BaseNodeHandler):
 
         is_multi = len(branches) > 1
         result = active_index >= 0
+        # Downstream boolean signal: a REAL (non-else) condition matched. else /
+        # no-match → False, so a Digital Write / Light Bulb fed by a single-output
+        # If/Else stays LOW unless the IF / ELSE-IF condition is actually true.
+        matched = result and branches[active_index].get("condition") != "else"
 
         # If the matched branch has a custom output_text, emit it.
         # Otherwise emit a default label so downstream still receives something.
@@ -390,9 +394,14 @@ class IfElseHandler(BaseNodeHandler):
             input_value = data.get("score")
 
         out: dict = {
-            "result": result,
+            "result": matched,
+            "on": matched,
             "active_index": active_index,
-            "value": data,
+            # Merged upstream inputs (pass-through). Deliberately NOT named
+            # "value": first_input_value() grabs "value" first, and a truthy dict
+            # there made boolean consumers (Digital Write, Light Bulb) read HIGH
+            # unconditionally regardless of the condition.
+            "data": data,
             "input_value": input_value,
             "input_text": data.get("text"),
             "inputs_preview": [
