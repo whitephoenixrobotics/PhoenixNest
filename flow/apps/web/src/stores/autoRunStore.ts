@@ -20,10 +20,16 @@ let inFlight = false
 let pending = false
 let defDirty = true
 
-// Node types whose output depends on wall-clock time, not on flow inputs.
-// When any of these are present we need a periodic tick so they stay current
-// (e.g. a Delay needs the pipeline re-run each tick to count down).
-const TIME_DEPENDENT_TYPES = new Set(['delay', 'schedule', 'hold', 'interval'])
+// Node types whose output changes on its own — by wall-clock time (Delay,
+// Schedule…) OR by polling live hardware (Arduino sensor reads). When any are
+// present, Auto-Run keeps ticking so their values stay live in real time
+// without the user clicking the block/canvas. (Arduino reads go through the
+// serial worker thread and just read the latest cached sample, so re-running
+// them every tick is cheap and never blocks.)
+const TIME_DEPENDENT_TYPES = new Set([
+  'delay', 'schedule', 'hold', 'interval',
+  'arduino_analog_read', 'arduino_digital_read',
+])
 
 function hasTimeDependentNode(): boolean {
   return useFlowStore.getState().nodes.some((n) => TIME_DEPENDENT_TYPES.has(n.type))
