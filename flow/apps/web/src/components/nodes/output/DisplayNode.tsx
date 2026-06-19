@@ -68,7 +68,7 @@ export function DisplayNode({ id, data, selected }: Props) {
         {hasTable && (
           <div className={cn(
             'nodrag border border-zinc-700 rounded-md overflow-auto scrollbar-themed bg-zinc-900',
-            sized ? 'flex-1 min-h-0' : 'max-h-[180px]'
+            sized && !hasImage ? 'flex-1 min-h-0' : 'max-h-[180px]'
           )}>
             <table className="w-full text-[11px] border-collapse">
               <thead className="sticky top-0 bg-zinc-800">
@@ -96,7 +96,9 @@ export function DisplayNode({ id, data, selected }: Props) {
         {hasText && (
           <div className={cn(
             'nodrag p-2 bg-zinc-800 rounded-md text-zinc-200 text-xs overflow-auto scrollbar-themed whitespace-pre-wrap break-words',
-            sized ? 'flex-1 min-h-0' : 'max-h-[160px]'
+            // When an image is present it's the part that grows on resize; keep
+            // text bounded (content height, scroll) so it doesn't grow too.
+            sized && !hasImage ? 'flex-1 min-h-0' : 'max-h-[160px]'
           )}>
             {output!.text}
           </div>
